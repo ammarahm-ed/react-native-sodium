@@ -73,6 +73,12 @@ JNIEXPORT jint JNICALL Java_org_libsodium_jni_SodiumJNI_crypto_1secretbox_1macby
 return (jint) crypto_secretbox_MACBYTES;
 }
 
+JNIEXPORT void JNICALL Java_org_libsodium_jni_SodiumJNI_crypto_1secretbox_1keygen(JNIEnv *jenv, jclass jcls, jbyteArray j_key) {
+  unsigned char *key = (unsigned char *) (*jenv)->GetByteArrayElements(jenv, j_key, 0);
+  crypto_secretbox_keygen(key);
+  (*jenv)->ReleaseByteArrayElements(jenv, j_key, (jbyte *) key, 0);
+}
+
 JNIEXPORT jint JNICALL Java_org_libsodium_jni_SodiumJNI_crypto_1secretbox_1easy(JNIEnv *jenv, jclass jcls, jbyteArray j_c, jbyteArray j_m, jlong j_mlen, jbyteArray j_n, jbyteArray j_k) {
   unsigned char *c = (unsigned char *) (*jenv)->GetByteArrayElements(jenv, j_c, 0);
   unsigned char *m = (unsigned char *) (*jenv)->GetByteArrayElements(jenv, j_m, 0);
@@ -109,6 +115,12 @@ JNIEXPORT jint JNICALL Java_org_libsodium_jni_SodiumJNI_crypto_1auth_1bytes(JNIE
 
 JNIEXPORT jint JNICALL Java_org_libsodium_jni_SodiumJNI_crypto_1auth_1keybytes(JNIEnv *jenv, jclass jcls) {
   return (jint) crypto_auth_KEYBYTES;
+}
+
+JNIEXPORT void JNICALL Java_org_libsodium_jni_SodiumJNI_crypto_1auth_1keygen(JNIEnv *jenv, jclass jcls, jbyteArray j_key) {
+  unsigned char *key = (unsigned char *) (*jenv)->GetByteArrayElements(jenv, j_key, 0);
+  crypto_auth_keygen(key);
+  (*jenv)->ReleaseByteArrayElements(jenv, j_key, (jbyte *) key, 0);
 }
 
 JNIEXPORT jint JNICALL Java_org_libsodium_jni_SodiumJNI_crypto_1auth(JNIEnv *jenv, jclass jcls, jbyteArray j_out, jbyteArray j_in, jlong j_inlen, jbyteArray j_k) {
@@ -326,6 +338,58 @@ JNIEXPORT jint JNICALL Java_org_libsodium_jni_SodiumJNI_crypto_1scalarmult_1base
   (*jenv)->ReleaseByteArrayElements(jenv, j_q, (jbyte *) q, 0);
   (*jenv)->ReleaseByteArrayElements(jenv, j_n, (jbyte *) n, 0);
   return (jint)result;
+}
+
+/* *****************************************************************************
+ * AEAD XChaCha
+ * *****************************************************************************
+ */
+JNIEXPORT jint JNICALL Java_org_libsodium_jni_SodiumJNI_crypto_1aead_1xchacha20poly1305_1ietf_1abytes(JNIEnv *jenv, jclass jcls) {
+  return (jint)crypto_aead_xchacha20poly1305_ietf_abytes();
+}
+
+JNIEXPORT jint JNICALL Java_org_libsodium_jni_SodiumJNI_crypto_1aead_1xchacha20poly1305_1ietf_1npubbytes(JNIEnv *jenv, jclass jcls) {
+  return (jint)crypto_aead_xchacha20poly1305_ietf_abytes();
+}
+
+JNIEXPORT jint JNICALL Java_org_libsodium_jni_SodiumJNI_crypto_1aead_1xchacha20poly1305_1ietf_1keybytes(JNIEnv *jenv, jclass jcls) {
+  return (jint)crypto_aead_xchacha20poly1305_ietf_abytes();
+}
+
+JNIEXPORT jint JNICALL Java_org_libsodium_jni_SodiumJNI_crypto_1aead_1xchacha20poly1305_1ietf_1encrypt(JNIEnv *jenv, jclass jcls, jbyteArray j_cipher, jint j_cipher_len, jbyteArray j_msg, jint j_msg_len, jbyteArray j_nonce, jbyteArray j_key) {
+  unsigned char *nonce = (unsigned char *) (*jenv)->GetByteArrayElements(jenv, j_nonce, 0);
+  unsigned char *msg = (unsigned char *) (*jenv)->GetByteArrayElements(jenv, j_msg, 0);
+  unsigned char *key = (unsigned char *) (*jenv)->GetByteArrayElements(jenv, j_key, 0);
+  unsigned char *cipher = (unsigned char *) (*jenv)->GetByteArrayElements(jenv, j_cipher, 0);
+  unsigned long long cipher_len = (unsigned long long)j_cipher_len;
+  unsigned long long msg_len = (unsigned long long)j_msg_len;
+
+
+  int result = crypto_aead_xchacha20poly1305_ietf_encrypt(cipher, &cipher_len, msg, msg_len, NULL, 0, NULL, nonce, key);
+
+  (*jenv)->ReleaseByteArrayElements(jenv, j_nonce, (jbyte *) nonce, 0);
+  (*jenv)->ReleaseByteArrayElements(jenv, j_msg, (jbyte *) msg, 0);
+  (*jenv)->ReleaseByteArrayElements(jenv, j_key, (jbyte *) key, 0);
+  (*jenv)->ReleaseByteArrayElements(jenv, j_cipher, (jbyte *) cipher, 0);
+  return (jint) result;
+}
+
+JNIEXPORT jint JNICALL Java_org_libsodium_jni_SodiumJNI_crypto_1aead_1xchacha20poly1305_1ietf_1decrypt(JNIEnv *jenv, jclass jcls, jbyteArray j_plain, jint j_plain_len, jbyteArray j_cipher, jint j_cipher_len, jbyteArray j_nonce, jbyteArray j_key) {
+  unsigned char *nonce = (unsigned char *) (*jenv)->GetByteArrayElements(jenv, j_nonce, 0);
+  unsigned char *plain = (unsigned char *) (*jenv)->GetByteArrayElements(jenv, j_plain, 0);
+  unsigned char *key = (unsigned char *) (*jenv)->GetByteArrayElements(jenv, j_key, 0);
+  unsigned char *cipher = (unsigned char *) (*jenv)->GetByteArrayElements(jenv, j_cipher, 0);
+  unsigned long long cipher_len = (unsigned long long)j_cipher_len;
+  unsigned long long plain_len = (unsigned long long)j_plain_len;
+
+
+  int result = crypto_aead_xchacha20poly1305_ietf_decrypt(plain, &plain_len, NULL, cipher, cipher_len, NULL, 0, nonce, key);
+
+  (*jenv)->ReleaseByteArrayElements(jenv, j_nonce, (jbyte *) nonce, 0);
+  (*jenv)->ReleaseByteArrayElements(jenv, j_plain, (jbyte *) plain, 0);
+  (*jenv)->ReleaseByteArrayElements(jenv, j_key, (jbyte *) key, 0);
+  (*jenv)->ReleaseByteArrayElements(jenv, j_cipher, (jbyte *) cipher, 0);
+  return (jint) result;
 }
 
 /* *****************************************************************************

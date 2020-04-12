@@ -1,0 +1,21 @@
+{
+  "buildFiles": [
+    "/Users/ammarahmed/Repos/notes-mobile/node_modules/react-native-sodium/android/CMakeLists.txt"
+  ],
+  "cleanCommands": [
+    "/Users/ammarahmed/Library/Android/sdk/cmake/3.6.4111459/bin/cmake --build /Users/ammarahmed/Repos/notes-mobile/node_modules/react-native-sodium/android/.cxx/cmake/release/x86 --target clean"
+  ],
+  "libraries": {
+    "sodium-Release-x86": {
+      "artifactName": "sodium",
+      "abi": "x86",
+      "output": "/Users/ammarahmed/Repos/notes-mobile/node_modules/react-native-sodium/android/../libsodium/libsodium-android-i686/lib/libsodium.so"
+    },
+    "sodium-jni-Release-x86": {
+      "artifactName": "sodium-jni",
+      "buildCommand": "/Users/ammarahmed/Library/Android/sdk/cmake/3.6.4111459/bin/cmake --build /Users/ammarahmed/Repos/notes-mobile/node_modules/react-native-sodium/android/.cxx/cmake/release/x86 --target sodium-jni",
+      "abi": "x86",
+      "output": "/Users/ammarahmed/Repos/notes-mobile/node_modules/react-native-sodium/android/build/intermediates/cmake/release/obj/x86/libsodium-jni.so"
+    }
+  }
+}

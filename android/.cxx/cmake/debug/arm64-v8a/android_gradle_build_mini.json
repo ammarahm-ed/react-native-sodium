@@ -1,0 +1,21 @@
+{
+  "buildFiles": [
+    "/Users/ammarahmed/Repos/notes-mobile/node_modules/react-native-sodium/android/CMakeLists.txt"
+  ],
+  "cleanCommands": [
+    "/Users/ammarahmed/Library/Android/sdk/cmake/3.6.4111459/bin/cmake --build /Users/ammarahmed/Repos/notes-mobile/node_modules/react-native-sodium/android/.cxx/cmake/debug/arm64-v8a --target clean"
+  ],
+  "libraries": {
+    "sodium-jni-Debug-arm64-v8a": {
+      "artifactName": "sodium-jni",
+      "buildCommand": "/Users/ammarahmed/Library/Android/sdk/cmake/3.6.4111459/bin/cmake --build /Users/ammarahmed/Repos/notes-mobile/node_modules/react-native-sodium/android/.cxx/cmake/debug/arm64-v8a --target sodium-jni",
+      "abi": "arm64-v8a",
+      "output": "/Users/ammarahmed/Repos/notes-mobile/node_modules/react-native-sodium/android/build/intermediates/cmake/debug/obj/arm64-v8a/libsodium-jni.so"
+    },
+    "sodium-Debug-arm64-v8a": {
+      "artifactName": "sodium",
+      "abi": "arm64-v8a",
+      "output": "/Users/ammarahmed/Repos/notes-mobile/node_modules/react-native-sodium/android/../libsodium/libsodium-android-armv8-a/lib/libsodium.so"
+    }
+  }
+}

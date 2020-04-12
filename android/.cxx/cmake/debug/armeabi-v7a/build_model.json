@@ -1,0 +1,72 @@
+{
+  "variant": {
+    "module": {
+      "rootBuildGradleFolder": "/Users/ammarahmed/Repos/notes-mobile/android",
+      "sdkFolder": "/Users/ammarahmed/Library/Android/sdk",
+      "isNativeCompilerSettingsCacheEnabled": false,
+      "isBuildOnlyTargetAbiEnabled": true,
+      "splitsAbiFilterSet": [],
+      "intermediatesFolder": "/Users/ammarahmed/Repos/notes-mobile/node_modules/react-native-sodium/android/build/intermediates",
+      "gradleModulePathName": ":react-native-sodium",
+      "moduleRootFolder": "/Users/ammarahmed/Repos/notes-mobile/node_modules/react-native-sodium/android",
+      "makeFile": "/Users/ammarahmed/Repos/notes-mobile/node_modules/react-native-sodium/android/CMakeLists.txt",
+      "buildSystem": "CMAKE",
+      "compilerSettingsCacheFolder": "/Users/ammarahmed/Repos/notes-mobile/android/.cxx",
+      "cxxFolder": "/Users/ammarahmed/Repos/notes-mobile/node_modules/react-native-sodium/android/.cxx",
+      "ndkFolder": "/Users/ammarahmed/Library/Android/sdk/ndk/20.1.5948944",
+      "ndkVersion": "20.1.5948944",
+      "ndkSupportedAbiList": [
+        "ARMEABI_V7A",
+        "ARM64_V8A",
+        "X86",
+        "X86_64"
+      ],
+      "ndkDefaultAbiList": [
+        "ARMEABI_V7A",
+        "ARM64_V8A",
+        "X86",
+        "X86_64"
+      ],
+      "cmakeToolchainFile": "."
+    },
+    "buildSystemArgumentList": [
+      "-DANDROID_TOOLCHAIN\u003dclang"
+    ],
+    "cFlagList": [],
+    "cppFlagsList": [],
+    "variantName": "debug",
+    "soFolder": "/Users/ammarahmed/Repos/notes-mobile/node_modules/react-native-sodium/android/build/intermediates/cmake/debug/lib",
+    "objFolder": "/Users/ammarahmed/Repos/notes-mobile/node_modules/react-native-sodium/android/build/intermediates/cmake/debug/obj",
+    "jsonFolder": "/Users/ammarahmed/Repos/notes-mobile/node_modules/react-native-sodium/android/.cxx/cmake/debug",
+    "gradleBuildOutputFolder": "/Users/ammarahmed/Repos/notes-mobile/node_modules/react-native-sodium/android/.cxx/cxx/debug",
+    "isDebuggableEnabled": true,
+    "validAbiList": [
+      "ARMEABI_V7A",
+      "ARM64_V8A",
+      "X86",
+      "X86_64"
+    ],
+    "buildTargetSet": []
+  },
+  "abi": "ARMEABI_V7A",
+  "abiPlatformVersion": 16,
+  "cxxBuildFolder": "/Users/ammarahmed/Repos/notes-mobile/node_modules/react-native-sodium/android/.cxx/cmake/debug/armeabi-v7a",
+  "jsonFile": "/Users/ammarahmed/Repos/notes-mobile/node_modules/react-native-sodium/android/.cxx/cmake/debug/armeabi-v7a/android_gradle_build.json",
+  "gradleBuildOutputFolder": "/Users/ammarahmed/Repos/notes-mobile/node_modules/react-native-sodium/android/.cxx/cxx/debug/armeabi-v7a",
+  "objFolder": "/Users/ammarahmed/Repos/notes-mobile/node_modules/react-native-sodium/android/build/intermediates/cmake/debug/obj/armeabi-v7a",
+  "buildCommandFile": "/Users/ammarahmed/Repos/notes-mobile/node_modules/react-native-sodium/android/.cxx/cmake/debug/armeabi-v7a/build_command.txt",
+  "buildOutputFile": "/Users/ammarahmed/Repos/notes-mobile/node_modules/react-native-sodium/android/.cxx/cmake/debug/armeabi-v7a/build_output.txt",
+  "modelOutputFile": "/Users/ammarahmed/Repos/notes-mobile/node_modules/react-native-sodium/android/.cxx/cmake/debug/armeabi-v7a/build_model.json",
+  "cmake": {
+    "cmakeListsWrapperFile": "/Users/ammarahmed/Repos/notes-mobile/node_modules/react-native-sodium/android/.cxx/cxx/debug/armeabi-v7a/CMakeLists.txt",
+    "toolchainWrapperFile": "/Users/ammarahmed/Repos/notes-mobile/node_modules/react-native-sodium/android/.cxx/cxx/debug/armeabi-v7a/android_gradle_build.toolchain.cmake",
+    "buildGenerationStateFile": "/Users/ammarahmed/Repos/notes-mobile/node_modules/react-native-sodium/android/.cxx/cxx/debug/armeabi-v7a/build_generation_state.json",
+    "cacheKeyFile": "/Users/ammarahmed/Repos/notes-mobile/node_modules/react-native-sodium/android/.cxx/cxx/debug/armeabi-v7a/compiler_cache_key.json",
+    "compilerCacheUseFile": "/Users/ammarahmed/Repos/notes-mobile/node_modules/react-native-sodium/android/.cxx/cxx/debug/armeabi-v7a/compiler_cache_use.json",
+    "compilerCacheWriteFile": "/Users/ammarahmed/Repos/notes-mobile/node_modules/react-native-sodium/android/.cxx/cxx/debug/armeabi-v7a/compiler_cache_write.json",
+    "toolchainSettingsFromCacheFile": "/Users/ammarahmed/Repos/notes-mobile/node_modules/react-native-sodium/android/.cxx/cxx/debug/armeabi-v7a/compiler_settings_cache.cmake",
+    "cmakeWrappingBaseFolder": "."
+  },
+  "jsonGenerationLoggingRecordFile": "/Users/ammarahmed/Repos/notes-mobile/node_modules/react-native-sodium/android/.cxx/cmake/debug/armeabi-v7a/json_generation_record.json",
+  "compileCommandsJsonFile": "/Users/ammarahmed/Repos/notes-mobile/node_modules/react-native-sodium/android/.cxx/cmake/debug/armeabi-v7a/compile_commands.json"
+}

@@ -1,0 +1,49 @@
+
+{
+	"buildFiles" : 
+	[
+		"/Users/ammarahmed/Repos/notes-mobile/node_modules/react-native-sodium/android/CMakeLists.txt"
+	],
+	"cFileExtensions" : [ "c" ],
+	"cleanCommands" : 
+	[
+		"/Users/ammarahmed/Library/Android/sdk/cmake/3.6.4111459/bin/cmake --build /Users/ammarahmed/Repos/notes-mobile/node_modules/react-native-sodium/android/.cxx/cmake/release/arm64-v8a --target clean"
+	],
+	"libraries" : 
+	{
+		"sodium-Release-arm64-v8a" : 
+		{
+			"abi" : "arm64-v8a",
+			"artifactName" : "sodium",
+			"buildType" : "release",
+			"output" : "/Users/ammarahmed/Repos/notes-mobile/node_modules/react-native-sodium/android/../libsodium/libsodium-android-armv8-a/lib/libsodium.so",
+			"toolchain" : "8476955919640479625"
+		},
+		"sodium-jni-Release-arm64-v8a" : 
+		{
+			"abi" : "arm64-v8a",
+			"artifactName" : "sodium-jni",
+			"buildCommand" : "/Users/ammarahmed/Library/Android/sdk/cmake/3.6.4111459/bin/cmake --build /Users/ammarahmed/Repos/notes-mobile/node_modules/react-native-sodium/android/.cxx/cmake/release/arm64-v8a --target sodium-jni",
+			"buildType" : "release",
+			"files" : 
+			[
+				
+				{
+					"flags" : "  --target=aarch64-none-linux-android21 --gcc-toolchain=/Users/ammarahmed/Library/Android/sdk/ndk/20.1.5948944/toolchains/llvm/prebuilt/darwin-x86_64 --sysroot=/Users/ammarahmed/Library/Android/sdk/ndk/20.1.5948944/toolchains/llvm/prebuilt/darwin-x86_64/sysroot -Dsodium_jni_EXPORTS -I../../../../../libsodium/libsodium-android-armv8-a/include  -g -DANDROID -fdata-sections -ffunction-sections -funwind-tables -fstack-protector-strong -no-canonical-prefixes -fno-addrsig -Wa,--noexecstack -Wformat -Werror=format-security  -O2 -DNDEBUG  -fPIC      -c ",
+					"src" : "/Users/ammarahmed/Repos/notes-mobile/node_modules/react-native-sodium/android/src/main/cpp/sodium-jni.c",
+					"workingDirectory" : "/Users/ammarahmed/Repos/notes-mobile/node_modules/react-native-sodium/android/.cxx/cmake/release/arm64-v8a"
+				}
+			],
+			"output" : "/Users/ammarahmed/Repos/notes-mobile/node_modules/react-native-sodium/android/build/intermediates/cmake/release/obj/arm64-v8a/libsodium-jni.so",
+			"toolchain" : "8476955919640479625"
+		}
+	},
+	"toolchains" : 
+	{
+		"8476955919640479625" : 
+		{
+			"cCompilerExecutable" : "/Users/ammarahmed/Library/Android/sdk/ndk/20.1.5948944/toolchains/llvm/prebuilt/darwin-x86_64/bin/clang",
+			"cppCompilerExecutable" : "/Users/ammarahmed/Library/Android/sdk/ndk/20.1.5948944/toolchains/llvm/prebuilt/darwin-x86_64/bin/clang++"
+		}
+	}
+}
