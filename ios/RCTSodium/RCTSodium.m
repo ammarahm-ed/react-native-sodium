@@ -41,7 +41,8 @@ RCT_EXPORT_MODULE();
 - (NSData*) randombytes_buf:(size_t)len {
     unsigned char buf[len];
     randombytes_buf(buf, len);
-    return [NSData dataWithBytesNoCopy:buf length:len freeWhenDone:YES];
+    NSData *random = [NSData dataWithBytes:buf length:len];
+    return random;
 }
 
 - (NSString*) bin2b64:(NSData*) data {
@@ -124,10 +125,12 @@ RCT_EXPORT_METHOD(encrypt:(NSDictionary*)passwordOrKey data:(NSString*)data reso
         NSString* base64Cipher = [self bin2b64:[NSData dataWithBytesNoCopy:ciphertext length:length freeWhenDone:NO]];
         NSString* base64IV = [self bin2b64:iv];
         NSString* base64Salt = [self bin2b64:salt];
+
         [dict setValue:base64IV forKey:@"iv"];
         [dict setValue:base64Salt forKey:@"salt"];
         [dict setValue:base64Cipher forKey:@"cipher"];
         [dict setObject:[NSNumber numberWithUnsignedLong:[data length]] forKey:@"length"];
+        
         resolve(dict);
     }
 }
@@ -158,7 +161,8 @@ RCT_EXPORT_METHOD(decrypt:(NSDictionary*)passwordOrKey cipher:(NSDictionary*)cip
     if (crypto_aead_xchacha20poly1305_ietf_decrypt(plaintext, &ulength, NULL, [cipherb bytes], (unsigned long long)[cipherb length], NULL, 0,[iv bytes], [key bytes]) != 0) {
         reject(ESODIUM, ERR_FAILURE, nil);
     } else {
-        NSString* s = [NSString stringWithCString:(char *)plaintext encoding:NSUTF8StringEncoding];
+        NSString* s =[[NSString alloc] initWithBytesNoCopy:plaintext length:ulength encoding:NSUTF8StringEncoding freeWhenDone:NO ];
+//s    __NSCFString *    @"{\"salt\":\"W7qW3gG2ev_8Th9sU_Byvw\",\"iv\":\"L4Kv_Lq99vwWZHpaZofnxfKTuUg8aOtb\",\"remote\":true,\"length\":9,\"cipher\":\"DH8uCuAcrkFhCkKfVPZf1J7ZF68DnrC7yQ\"}"    0x00006000020c1c40
         resolve(s);
     }
 }

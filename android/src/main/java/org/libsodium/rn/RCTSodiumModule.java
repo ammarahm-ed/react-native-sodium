@@ -84,7 +84,7 @@ public class RCTSodiumModule extends ReactContextBaseJavaModule {
                 key = Base64.decode(passwordOrKey.getString("key"), variant);
                 salt = Base64.decode(passwordOrKey.getString("salt"), variant);
             } else if (passwordOrKey.hasKey("password")) {
-                Pair<byte[], byte[]> pair = crypto_pwhash(passwordOrKey.getString("password"), null);
+                Pair<byte[], byte[]> pair = crypto_pwhash(passwordOrKey.getString("password"),null);
                 key = pair.first;
                 salt = pair.second;
             }
@@ -100,8 +100,8 @@ public class RCTSodiumModule extends ReactContextBaseJavaModule {
                 p.reject(ESODIUM, ERR_FAILURE);
                 return;
             }
-            WritableMap args = new Arguments().createMap();
 
+            WritableMap args = new Arguments().createMap();
             args.putString("cipher", Base64.encodeToString(cipher,variant));
             args.putString("iv", Base64.encodeToString(iv, variant));
             args.putString("salt", Base64.encodeToString(salt, variant));
