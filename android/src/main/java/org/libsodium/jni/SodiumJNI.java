@@ -23,4 +23,5 @@ public class SodiumJNI {
   public final static native int crypto_aead_xchacha20poly1305_ietf_keybytes();
   public final static native int crypto_aead_xchacha20poly1305_ietf_npubbytes();
 
+  public final static native int crypto_generichash(byte[] hash, int hash_len, byte[] input, int input_len, byte[] key, int key_len);
 }

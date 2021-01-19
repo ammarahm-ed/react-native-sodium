@@ -63,7 +63,7 @@ RCT_EXPORT_MODULE();
     else {
         dsalt = [self randombytes_buf:dsalt_len];
     }
-        
+    
     unsigned long long key_len = 32;
     unsigned char *key = (unsigned char *) sodium_malloc(key_len);
     
@@ -71,7 +71,7 @@ RCT_EXPORT_MODULE();
     unsigned long long memlimit = 1024 * 1024 * 8;
     
     if (crypto_pwhash(key, key_len,
-                      dpassword, 
+                      dpassword,
                       [password length],
                       [dsalt bytes],
                       ops,
@@ -96,6 +96,36 @@ RCT_EXPORT_METHOD(deriveKey:(NSString*)password salty:(NSString *)salty resolve:
     resolve(keySalt);
 }
 
+RCT_EXPORT_METHOD(hashPassword:(NSString*)password email:(NSString *)email resolve: (RCTPromiseResolveBlock)resolve reject:(RCTPromiseRejectBlock)reject) {
+    
+    NSString *app_salt = @"oVzKtazBo7d8sb7TBvY9jw";
+    const char *dpassword = [password cStringUsingEncoding:NSUTF8StringEncoding];
+    unsigned char *input = [[app_salt stringByAppendingString:email] cStringUsingEncoding:NSUTF8StringEncoding];
+    unsigned long long input_len = strlen(input);
+    unsigned char *hash = (unsigned char *) sodium_malloc(16);
+    unsigned char *key = (unsigned char *) sodium_malloc(32);
+    
+    int result = crypto_generichash(hash, 16, input, input_len, nil, 0);
+    
+    unsigned long long memlimit = 1024 * 1024 * 64;
+    
+    if (crypto_pwhash(key, 32,
+                      dpassword,
+                      [password length],
+                      hash,
+                      3,
+                      memlimit, crypto_pwhash_alg_argon2id13() != 0))
+        reject(@"Error", nil,nil);
+    
+    else {
+        
+        resolve([[NSString alloc] initWithBytesNoCopy:key length:32 encoding:NSUTF8StringEncoding freeWhenDone:NO ]);
+        
+    }
+    
+}
+
+
 RCT_EXPORT_METHOD(encrypt:(NSDictionary*)passwordOrKey data:(NSString*)data resolve: (RCTPromiseResolveBlock)resolve reject:(RCTPromiseRejectBlock)reject)
 {
     //unsigned long salt_len = crypto_pwhash_saltbytes();
@@ -115,9 +145,9 @@ RCT_EXPORT_METHOD(encrypt:(NSDictionary*)passwordOrKey data:(NSString*)data reso
     const unsigned char *ddata = (unsigned char*)[data cStringUsingEncoding:NSUTF8StringEncoding];
     unsigned long long length = (unsigned long long)[data length] + crypto_aead_xchacha20poly1305_ietf_abytes();
     unsigned char ciphertext[length];
-
+    
     NSData* iv = [self randombytes_buf:crypto_aead_xchacha20poly1305_ietf_npubbytes()];
-
+    
     if (crypto_aead_xchacha20poly1305_ietf_encrypt(ciphertext, &length, ddata, (unsigned long long)[data length], NULL, 0, NULL, [iv bytes], [key bytes]) != 0) {
         reject(ESODIUM, ERR_FAILURE, nil);
     } else {
@@ -125,7 +155,7 @@ RCT_EXPORT_METHOD(encrypt:(NSDictionary*)passwordOrKey data:(NSString*)data reso
         NSString* base64Cipher = [self bin2b64:[NSData dataWithBytesNoCopy:ciphertext length:length freeWhenDone:NO]];
         NSString* base64IV = [self bin2b64:iv];
         NSString* base64Salt = [self bin2b64:salt];
-
+        
         [dict setValue:base64IV forKey:@"iv"];
         [dict setValue:base64Salt forKey:@"salt"];
         [dict setValue:base64Cipher forKey:@"cipher"];
@@ -139,7 +169,7 @@ RCT_EXPORT_METHOD(decrypt:(NSDictionary*)passwordOrKey cipher:(NSDictionary*)cip
 {
     NSData* key;
     if ([passwordOrKey objectForKey:@"key"] && [passwordOrKey objectForKey:@"salt"]) {
-       key = [self b642bin:[passwordOrKey objectForKey:@"key"]];
+        key = [self b642bin:[passwordOrKey objectForKey:@"key"]];
     } else if ([passwordOrKey objectForKey:@"password"] && [cipher objectForKey:@"salt"]) {
         NSMutableDictionary* keySalt = [self crypto_pwhash:[passwordOrKey valueForKey:@"password"] salt:[cipher valueForKey:@"salt"]];
         if (keySalt == NULL)
@@ -157,12 +187,12 @@ RCT_EXPORT_METHOD(decrypt:(NSDictionary*)passwordOrKey cipher:(NSDictionary*)cip
     NSData* iv = [self b642bin:[cipher objectForKey:@"iv"]];
     
     unsigned char plaintext[ulength];
-
+    
     if (crypto_aead_xchacha20poly1305_ietf_decrypt(plaintext, &ulength, NULL, [cipherb bytes], (unsigned long long)[cipherb length], NULL, 0,[iv bytes], [key bytes]) != 0) {
         reject(ESODIUM, ERR_FAILURE, nil);
     } else {
         NSString* s =[[NSString alloc] initWithBytesNoCopy:plaintext length:ulength encoding:NSUTF8StringEncoding freeWhenDone:NO ];
-//s    __NSCFString *    @"{\"salt\":\"W7qW3gG2ev_8Th9sU_Byvw\",\"iv\":\"L4Kv_Lq99vwWZHpaZofnxfKTuUg8aOtb\",\"remote\":true,\"length\":9,\"cipher\":\"DH8uCuAcrkFhCkKfVPZf1J7ZF68DnrC7yQ\"}"    0x00006000020c1c40
+        
         resolve(s);
     }
 }

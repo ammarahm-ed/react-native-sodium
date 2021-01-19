@@ -149,4 +149,28 @@ public class RCTSodiumModule extends ReactContextBaseJavaModule {
             p.reject(ESODIUM, ERR_FAILURE, t);
         }
     }
+
+    @ReactMethod
+    public void hashPassword(final String password,final String email, final Promise p) {
+        try {
+            String app_salt = "oVzKtazBo7d8sb7TBvY9jw";
+            byte[] hash = new byte[16];
+            byte[] input = (app_salt + email).getBytes();
+
+            Sodium.crypto_generichash(hash,16,input,input.length,null,0);
+
+            byte[] key = new byte[32];
+            byte[] passwordb = password.getBytes();
+
+            int result = Sodium.crypto_pwhash(key, 32, passwordb, passwordb.length, hash, 3, 1024 * 1024 * 64, Sodium.crypto_pwhash_algo_argon2id13());
+
+            if (result != 0)
+                throw new Exception("crypto_pwhash: failed");
+
+            p.resolve(Base64.encodeToString(key,variant));
+
+        } catch (Throwable t) {
+            p.reject(ESODIUM, ERR_FAILURE, t);
+        }
+    }
 }
