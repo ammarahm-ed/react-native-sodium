@@ -100,26 +100,31 @@ RCT_EXPORT_METHOD(hashPassword:(NSString*)password email:(NSString *)email resol
     
     NSString *app_salt = @"oVzKtazBo7d8sb7TBvY9jw";
     const char *dpassword = [password cStringUsingEncoding:NSUTF8StringEncoding];
-    unsigned char *input = [[app_salt stringByAppendingString:email] cStringUsingEncoding:NSUTF8StringEncoding];
+    const char *input = [[app_salt stringByAppendingString:email] cStringUsingEncoding:NSUTF8StringEncoding];
     unsigned long long input_len = strlen(input);
     unsigned char *hash = (unsigned char *) sodium_malloc(16);
     unsigned char *key = (unsigned char *) sodium_malloc(32);
     
-    int result = crypto_generichash(hash, 16, input, input_len, nil, 0);
+    
+    int result = crypto_generichash(hash, 16, (unsigned char *) input, input_len, NULL, 0);
     
     unsigned long long memlimit = 1024 * 1024 * 64;
     
-    if (crypto_pwhash(key, 32,
+    if (result != 0) reject(@"Error", nil,nil);
+    
+    if (crypto_pwhash(key ,
+                      32,
                       dpassword,
                       [password length],
                       hash,
                       3,
-                      memlimit, crypto_pwhash_alg_argon2id13() != 0))
+                      memlimit, crypto_pwhash_alg_argon2id13()) != 0)
         reject(@"Error", nil,nil);
     
     else {
         
-        resolve([[NSString alloc] initWithBytesNoCopy:key length:32 encoding:NSUTF8StringEncoding freeWhenDone:NO ]);
+        NSString *value = [self bin2b64:[[NSData alloc] initWithBytes:key length:32]];
+        resolve(value);
         
     }
     
