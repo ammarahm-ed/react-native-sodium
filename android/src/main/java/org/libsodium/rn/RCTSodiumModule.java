@@ -40,7 +40,7 @@ public class RCTSodiumModule extends ReactContextBaseJavaModule {
     final int a_bytes_length = 16;
 
     final int variant = Base64.NO_PADDING | Base64.URL_SAFE | Base64.NO_WRAP | Base64.NO_CLOSE;
-    
+
     public RCTSodiumModule(ReactApplicationContext reactContext) {
         super(reactContext);
         Sodium.loadLibrary();
@@ -75,8 +75,10 @@ public class RCTSodiumModule extends ReactContextBaseJavaModule {
 
 
     @ReactMethod
-    public void encrypt(final ReadableMap passwordOrKey, final String data, final Promise p) {
+    public void encrypt(final ReadableMap passwordOrKey, final ReadableMap data, final Promise p) {
         try {
+
+            byte[] dataB;
 
             byte[] key = new byte[key_length];
             byte[] salt = new byte[salt_length];
@@ -84,28 +86,32 @@ public class RCTSodiumModule extends ReactContextBaseJavaModule {
                 key = Base64.decode(passwordOrKey.getString("key"), variant);
                 salt = Base64.decode(passwordOrKey.getString("salt"), variant);
             } else if (passwordOrKey.hasKey("password")) {
-                Pair<byte[], byte[]> pair = crypto_pwhash(passwordOrKey.getString("password"),null);
+                Pair<byte[], byte[]> pair = crypto_pwhash(passwordOrKey.getString("password"), null);
                 key = pair.first;
                 salt = pair.second;
             }
 
-            byte[] datab = data.getBytes();
+            if (data.getString("type").equals("b64")) {
+                dataB = Base64.decode(data.getString("data"), variant);
+            } else {
+                dataB = data.getString("data").getBytes();
+            }
 
-            int length = datab.length + a_bytes_length;
+            int length = dataB.length + a_bytes_length;
             byte[] cipher = new byte[length];
             byte[] iv = randombytes_buf(iv_length);
 
-            int result = Sodium.crypto_aead_xchacha20poly1305_ietf_encrypt(cipher, length, datab, datab.length, iv, key);
+            int result = Sodium.crypto_aead_xchacha20poly1305_ietf_encrypt(cipher, length, dataB, dataB.length, iv, key);
             if (result != 0) {
                 p.reject(ESODIUM, ERR_FAILURE);
                 return;
             }
 
             WritableMap args = new Arguments().createMap();
-            args.putString("cipher", Base64.encodeToString(cipher,variant));
+            args.putString("cipher", Base64.encodeToString(cipher, variant));
             args.putString("iv", Base64.encodeToString(iv, variant));
             args.putString("salt", Base64.encodeToString(salt, variant));
-            args.putInt("length", datab.length);
+            args.putInt("length", dataB.length);
             p.resolve(args);
 
         } catch (Exception e) {
@@ -131,14 +137,21 @@ public class RCTSodiumModule extends ReactContextBaseJavaModule {
                 p.reject(ESODIUM, ERR_FAILURE);
                 return;
             }
-            p.resolve(new String(plainText));
+
+            if (cipher.getString("output").equals("plain")) {
+                p.resolve(new String(plainText));
+            } else {
+
+                p.resolve(Base64.encodeToString(plainText, variant));
+            }
+
         } catch (Exception e) {
             p.reject(e);
         }
     }
 
     @ReactMethod
-    public void deriveKey(final String password,final String salt, final Promise p) {
+    public void deriveKey(final String password, final String salt, final Promise p) {
         try {
             Pair<byte[], byte[]> pair = crypto_pwhash(password, salt);
             WritableMap map = new Arguments().createMap();
@@ -151,13 +164,13 @@ public class RCTSodiumModule extends ReactContextBaseJavaModule {
     }
 
     @ReactMethod
-    public void hashPassword(final String password,final String email, final Promise p) {
+    public void hashPassword(final String password, final String email, final Promise p) {
         try {
             String app_salt = "oVzKtazBo7d8sb7TBvY9jw";
             byte[] hash = new byte[16];
             byte[] input = (app_salt + email).getBytes();
 
-            Sodium.crypto_generichash(hash,16,input,input.length,null,0);
+            Sodium.crypto_generichash(hash, 16, input, input.length, null, 0);
 
             byte[] key = new byte[32];
             byte[] passwordb = password.getBytes();
@@ -167,7 +180,7 @@ public class RCTSodiumModule extends ReactContextBaseJavaModule {
             if (result != 0)
                 throw new Exception("crypto_pwhash: failed");
 
-            p.resolve(Base64.encodeToString(key,variant));
+            p.resolve(Base64.encodeToString(key, variant));
 
         } catch (Throwable t) {
             p.reject(ESODIUM, ERR_FAILURE, t);
