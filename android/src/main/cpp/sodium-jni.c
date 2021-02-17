@@ -303,13 +303,11 @@ jint key_len
 ) {
   unsigned char *hash = (unsigned char *) (*jenv)->GetByteArrayElements(jenv, j_hash, 0);
   unsigned char *input = (unsigned char *) (*jenv)->GetByteArrayElements(jenv, j_input, 0);
-  unsigned char *key = (unsigned char *) (*jenv)->GetByteArrayElements(jenv, j_key, 0);
-
-  int result = crypto_generichash(hash,(unsigned long long) j_hash_len,input,(unsigned long long) input_len,key, (unsigned long long) key_len);
+ 
+  int result = crypto_generichash(hash,(unsigned long long) j_hash_len,input,(unsigned long long) input_len,NULL, (unsigned long long) 0);
 
   (*jenv)->ReleaseByteArrayElements(jenv, j_hash, (jbyte *) hash, 0);
   (*jenv)->ReleaseByteArrayElements(jenv, j_input, (jbyte *) input, 0);
-  (*jenv)->ReleaseByteArrayElements(jenv, j_key, (jbyte *) key, 0);
 
   return  (jint) result;
 }
