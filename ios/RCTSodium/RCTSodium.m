@@ -198,10 +198,9 @@ RCT_EXPORT_METHOD(decrypt:(NSDictionary*)passwordOrKey cipher:(NSDictionary*)cip
     }
     NSNumber* length = (NSNumber*)[cipher valueForKey:@"length"];
     unsigned long long ulength =[length unsignedLongLongValue];
-    
     //size_t data_len = ulength + crypto_aead_xchacha20poly1305_ietf_abytes();
     NSString* data = [cipher objectForKey:@"cipher"];
-    NSData* cipherb = [self b642bin:data ];
+    NSData* cipherb = [[NSData alloc] initWithBase64EncodedString:data options:0];
     
     //size_t iv_len = crypto_aead_xchacha20poly1305_ietf_npubbytes();
     NSData* iv = [self b642bin:[cipher objectForKey:@"iv"]];
