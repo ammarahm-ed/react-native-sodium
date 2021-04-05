@@ -198,10 +198,11 @@ RCT_EXPORT_METHOD(decrypt:(NSDictionary*)passwordOrKey cipher:(NSDictionary*)cip
     }
     NSNumber* length = (NSNumber*)[cipher valueForKey:@"length"];
     unsigned long long ulength =[length unsignedLongLongValue];
+
     //size_t data_len = ulength + crypto_aead_xchacha20poly1305_ietf_abytes();
     NSString* data = [cipher objectForKey:@"cipher"];
-    NSData* cipherb = [[NSData alloc] initWithBase64EncodedString:data options:0];
-    
+    NSData* cipherb = [self b642bin:data ];
+
     //size_t iv_len = crypto_aead_xchacha20poly1305_ietf_npubbytes();
     NSData* iv = [self b642bin:[cipher objectForKey:@"iv"]];
     
@@ -222,5 +223,51 @@ RCT_EXPORT_METHOD(decrypt:(NSDictionary*)passwordOrKey cipher:(NSDictionary*)cip
      
     }
 }
+
+//RCT_EXPORT_METHOD(decrypt:(NSDictionary*)passwordOrKey cipher:(NSDictionary*)cipher resolve: (RCTPromiseResolveBlock)resolve reject:(RCTPromiseRejectBlock)reject)
+//{
+//    NSData* key;
+//    if ([passwordOrKey objectForKey:@"key"] && [passwordOrKey objectForKey:@"salt"]) {
+//        key = [self b642bin:[passwordOrKey objectForKey:@"key"]];
+//    } else if ([passwordOrKey objectForKey:@"password"] && [cipher objectForKey:@"salt"]) {
+//        NSMutableDictionary* keySalt = [self crypto_pwhash:[passwordOrKey valueForKey:@"password"] salt:[cipher valueForKey:@"salt"]];
+//        if (keySalt == NULL)
+//            reject(ESODIUM, ERR_FAILURE, nil);
+//        key = (NSData*)[keySalt objectForKey:@"key"];
+//    }
+//    NSNumber* length = (NSNumber*)[cipher valueForKey:@"length"];
+//    unsigned long long ulength =[length unsignedLongLongValue];
+//    unsigned long bin_len;
+//
+//    //size_t data_len = ulength + crypto_aead_xchacha20poly1305_ietf_abytes();
+//    NSString* data = [cipher valueForKey:@"cipher"];
+//    const char * base64 = [data cStringUsingEncoding:NSUTF8StringEncoding];
+//    unsigned long long bin_capacity = [data length] * 3 / 4 + 1;
+//    unsigned char binary[bin_capacity];
+//
+//    if (sodium_base642bin(binary, sizeof binary, base64, [data length], "\n\r ", &bin_len, NULL, sodium_base64_VARIANT_URLSAFE_NO_PADDING) != 0) {
+//        reject(ESODIUM, ERR_FAILURE, nil);
+//        return;
+//    }
+//
+//    //size_t iv_len = crypto_aead_xchacha20poly1305_ietf_npubbytes();
+//    NSData* iv = [self b642bin:[cipher objectForKey:@"iv"]];
+//
+//    unsigned char plaintext[ulength];
+//    if (crypto_aead_xchacha20poly1305_ietf_decrypt(plaintext, &ulength, NULL, binary, bin_len, NULL, 0,[iv bytes], [key bytes]) != 0) {
+//        reject(ESODIUM, ERR_FAILURE, nil);
+//    } else {
+//
+//        if ([[cipher valueForKey:@"output"] isEqual:@"plain"]) {
+//            NSString* s =[[NSString alloc] initWithBytesNoCopy:plaintext length:ulength encoding:NSUTF8StringEncoding freeWhenDone:NO ];
+//            resolve(s);
+//        } else {
+//            resolve([[NSData dataWithBytesNoCopy:plaintext length:ulength freeWhenDone:NO] base64EncodedStringWithOptions:0]);
+//        }
+//
+//
+//
+//    }
+//}
 
 @end
