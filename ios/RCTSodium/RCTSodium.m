@@ -12,6 +12,7 @@
 #import "MF_Base64Additions.h"
 #import "RCTSodium.h"
 
+
 @implementation RCTSodium
 
 static bool isInitialized;
@@ -35,7 +36,7 @@ RCT_EXPORT_MODULE();
 
 + (BOOL)requiresMainQueueSetup
 {
-    return NO;
+    return YES;
 }
 
 - (NSData*) randombytes_buf:(size_t)len {
@@ -86,142 +87,149 @@ RCT_EXPORT_MODULE();
 }
 
 RCT_EXPORT_METHOD(deriveKey:(NSString*)password salty:(NSString *)salty resolve: (RCTPromiseResolveBlock)resolve reject:(RCTPromiseRejectBlock)reject) {
-    NSMutableDictionary* keySalt = [self crypto_pwhash:password salt:salty];
-    if (keySalt == NULL)
-        reject(ESODIUM, ERR_FAILURE, nil);
-    NSData* key = (NSData*)[keySalt objectForKey:@"key"];
-    NSData* salt = (NSData*)[keySalt objectForKey:@"salt"];
-    [keySalt setValue:[self bin2b64:key] forKey:@"key"];
-    [keySalt setValue:[self bin2b64:salt] forKey:@"salt"];
-    resolve(keySalt);
+    dispatch_async(dispatch_get_main_queue(), ^{
+        NSMutableDictionary* keySalt = [self crypto_pwhash:password salt:salty];
+        if (keySalt == NULL)
+            reject(ESODIUM, ERR_FAILURE, nil);
+        NSData* key = (NSData*)[keySalt objectForKey:@"key"];
+        NSData* salt = (NSData*)[keySalt objectForKey:@"salt"];
+        [keySalt setValue:[self bin2b64:key] forKey:@"key"];
+        [keySalt setValue:[self bin2b64:salt] forKey:@"salt"];
+        resolve(keySalt);
+        
+    });
 }
 
 RCT_EXPORT_METHOD(hashPassword:(NSString*)password email:(NSString *)email resolve: (RCTPromiseResolveBlock)resolve reject:(RCTPromiseRejectBlock)reject) {
-    
-    NSString *app_salt = @"oVzKtazBo7d8sb7TBvY9jw";
-    const char *dpassword = [password cStringUsingEncoding:NSUTF8StringEncoding];
-    const char *input = [[app_salt stringByAppendingString:email] cStringUsingEncoding:NSUTF8StringEncoding];
-    unsigned long long input_len = strlen(input);
-    unsigned char *hash = (unsigned char *) sodium_malloc(16);
-    unsigned char *key = (unsigned char *) sodium_malloc(32);
-    
-    
-    int result = crypto_generichash(hash, 16, (unsigned char *) input, input_len, NULL, 0);
-    
-    unsigned long long memlimit = 1024 * 1024 * 64;
-    
-    if (result != 0) reject(@"Error", nil,nil);
-    
-    if (crypto_pwhash(key ,
-                      32,
-                      dpassword,
-                      [password length],
-                      hash,
-                      3,
-                      memlimit, crypto_pwhash_alg_argon2id13()) != 0)
-        reject(@"Error", nil,nil);
-    
-    else {
+    dispatch_async(dispatch_get_main_queue(), ^{
+        NSString *app_salt = @"oVzKtazBo7d8sb7TBvY9jw";
+        const char *dpassword = [password cStringUsingEncoding:NSUTF8StringEncoding];
+        const char *input = [[app_salt stringByAppendingString:email] cStringUsingEncoding:NSUTF8StringEncoding];
+        unsigned long long input_len = strlen(input);
+        unsigned char *hash = (unsigned char *) sodium_malloc(16);
+        unsigned char *key = (unsigned char *) sodium_malloc(32);
         
-        NSString *value = [self bin2b64:[[NSData alloc] initWithBytes:key length:32]];
-        resolve(value);
         
-    }
+        int result = crypto_generichash(hash, 16, (unsigned char *) input, input_len, NULL, 0);
+        
+        unsigned long long memlimit = 1024 * 1024 * 64;
+        
+        if (result != 0) reject(@"Error", nil,nil);
+        
+        if (crypto_pwhash(key ,
+                          32,
+                          dpassword,
+                          [password length],
+                          hash,
+                          3,
+                          memlimit, crypto_pwhash_alg_argon2id13()) != 0)
+            reject(@"Error", nil,nil);
+        
+        else {
+            
+            NSString *value = [self bin2b64:[[NSData alloc] initWithBytes:key length:32]];
+            resolve(value);
+            
+        }
+        
+    });
     
 }
 
 
 RCT_EXPORT_METHOD(encrypt:(NSDictionary*)passwordOrKey data:(NSDictionary *)data resolve: (RCTPromiseResolveBlock)resolve reject:(RCTPromiseRejectBlock)reject)
 {
-    //unsigned long salt_len = crypto_pwhash_saltbytes();
     
-    
-    NSData* salt;
-    NSData* key;
-    if ([passwordOrKey objectForKey:@"key"] && [passwordOrKey objectForKey:@"salt"]) {
-        salt = [self b642bin:[passwordOrKey objectForKey:@"salt"]];
-        key = [self b642bin:[passwordOrKey objectForKey:@"key"]];
-    } else if ([passwordOrKey objectForKey:@"password"]) {
-        NSMutableDictionary* keySalt = [self crypto_pwhash:[passwordOrKey valueForKey:@"password"] salt:NULL];
-        if (keySalt == NULL)
+    dispatch_async(dispatch_get_main_queue(), ^{
+        
+        NSData* salt;
+        NSData* key;
+        if ([passwordOrKey objectForKey:@"key"] && [passwordOrKey objectForKey:@"salt"]) {
+            salt = [self b642bin:[passwordOrKey objectForKey:@"salt"]];
+            key = [self b642bin:[passwordOrKey objectForKey:@"key"]];
+        } else if ([passwordOrKey objectForKey:@"password"]) {
+            NSMutableDictionary* keySalt = [self crypto_pwhash:[passwordOrKey valueForKey:@"password"] salt:NULL];
+            if (keySalt == NULL)
+                reject(ESODIUM, ERR_FAILURE, nil);
+            key = (NSData*)[keySalt objectForKey:@"key"];
+            salt = (NSData*)[keySalt objectForKey:@"salt"];
+        }
+        
+        NSData *ddata;
+        
+        if ([[data valueForKey:@"type"] isEqual:@"b64"]) {
+            
+            // ddata = [self b642bin:[data valueForKey:@"data"]];
+            ddata = [[NSData alloc] initWithBase64EncodedString:[data valueForKey:@"data"] options:0];
+        } else {
+            ddata = [[data valueForKey:@"data"] dataUsingEncoding:NSUTF8StringEncoding];
+            // ddata = (unsigned char*)[[data valueForKey:@"data"] cStringUsingEncoding:NSUTF8StringEncoding];
+        }
+        
+        unsigned long long length = (unsigned long long)[ddata length] + crypto_aead_xchacha20poly1305_ietf_abytes();
+        unsigned char ciphertext[length];
+        size_t size_t_v = crypto_aead_xchacha20poly1305_ietf_npubbytes();
+        NSData* iv = [self randombytes_buf:size_t_v];
+        
+        if (crypto_aead_xchacha20poly1305_ietf_encrypt(ciphertext, &length, [ddata bytes], (unsigned long long)[ddata length], NULL, 0, NULL, [iv bytes], [key bytes]) != 0) {
             reject(ESODIUM, ERR_FAILURE, nil);
-        key = (NSData*)[keySalt objectForKey:@"key"];
-        salt = (NSData*)[keySalt objectForKey:@"salt"];
-    }
-    
-    NSData *ddata;
-    
-    if ([[data valueForKey:@"type"] isEqual:@"b64"]) {
-        
-        // ddata = [self b642bin:[data valueForKey:@"data"]];
-        ddata = [[NSData alloc] initWithBase64EncodedString:[data valueForKey:@"data"] options:0];
-    } else {
-        ddata = [[data valueForKey:@"data"] dataUsingEncoding:NSUTF8StringEncoding];
-        // ddata = (unsigned char*)[[data valueForKey:@"data"] cStringUsingEncoding:NSUTF8StringEncoding];
-    }
-    
-    
-    
-    
-    unsigned long long length = (unsigned long long)[ddata length] + crypto_aead_xchacha20poly1305_ietf_abytes();
-    unsigned char ciphertext[length];
-    
-    NSData* iv = [self randombytes_buf:crypto_aead_xchacha20poly1305_ietf_npubbytes()];
-    
-    if (crypto_aead_xchacha20poly1305_ietf_encrypt(ciphertext, &length, [ddata bytes], (unsigned long long)[ddata length], NULL, 0, NULL, [iv bytes], [key bytes]) != 0) {
-        reject(ESODIUM, ERR_FAILURE, nil);
-    } else {
-        NSMutableDictionary* dict = [NSMutableDictionary dictionary];
-        NSString* base64Cipher = [self bin2b64:[NSData dataWithBytesNoCopy:ciphertext length:length freeWhenDone:NO]];
-        NSString* base64IV = [self bin2b64:iv];
-        NSString* base64Salt = [self bin2b64:salt];
-        
-        [dict setValue:base64IV forKey:@"iv"];
-        [dict setValue:base64Salt forKey:@"salt"];
-        [dict setValue:base64Cipher forKey:@"cipher"];
-        [dict setObject:[NSNumber numberWithUnsignedLong:[ddata length]] forKey:@"length"];
-        
-        resolve(dict);
-    }
+        } else {
+            NSMutableDictionary* dict = [NSMutableDictionary dictionary];
+            NSString* base64Cipher = [self bin2b64:[NSData dataWithBytesNoCopy:ciphertext length:length freeWhenDone:NO]];
+            NSString* base64IV = [self bin2b64:iv];
+            NSString* base64Salt = [self bin2b64:salt];
+            
+            [dict setValue:base64IV forKey:@"iv"];
+            [dict setValue:base64Salt forKey:@"salt"];
+            [dict setValue:base64Cipher forKey:@"cipher"];
+            [dict setObject:[NSNumber numberWithUnsignedLong:[ddata length]] forKey:@"length"];
+            
+            resolve(dict);
+        }
+    });
 }
 
 RCT_EXPORT_METHOD(decrypt:(NSDictionary*)passwordOrKey cipher:(NSDictionary*)cipher resolve: (RCTPromiseResolveBlock)resolve reject:(RCTPromiseRejectBlock)reject)
 {
-    NSData* key;
-    if ([passwordOrKey objectForKey:@"key"] && [passwordOrKey objectForKey:@"salt"]) {
-        key = [self b642bin:[passwordOrKey objectForKey:@"key"]];
-    } else if ([passwordOrKey objectForKey:@"password"] && [cipher objectForKey:@"salt"]) {
-        NSMutableDictionary* keySalt = [self crypto_pwhash:[passwordOrKey valueForKey:@"password"] salt:[cipher valueForKey:@"salt"]];
-        if (keySalt == NULL)
-            reject(ESODIUM, ERR_FAILURE, nil);
-        key = (NSData*)[keySalt objectForKey:@"key"];
-    }
-    NSNumber* length = (NSNumber*)[cipher valueForKey:@"length"];
-    unsigned long long ulength =[length unsignedLongLongValue];
-
-    //size_t data_len = ulength + crypto_aead_xchacha20poly1305_ietf_abytes();
-    NSString* data = [cipher objectForKey:@"cipher"];
-    NSData* cipherb = [self b642bin:data ];
-
-    //size_t iv_len = crypto_aead_xchacha20poly1305_ietf_npubbytes();
-    NSData* iv = [self b642bin:[cipher objectForKey:@"iv"]];
-    
-    unsigned char plaintext[ulength];
-    
-    if (crypto_aead_xchacha20poly1305_ietf_decrypt(plaintext, &ulength, NULL, [cipherb bytes], (unsigned long long)[cipherb length], NULL, 0,[iv bytes], [key bytes]) != 0) {
-        reject(ESODIUM, ERR_FAILURE, nil);
-    } else {
+    dispatch_async(dispatch_get_main_queue(), ^{
         
-        if ([[cipher valueForKey:@"output"] isEqual:@"plain"]) {
-            NSString* s =[[NSString alloc] initWithBytesNoCopy:plaintext length:ulength encoding:NSUTF8StringEncoding freeWhenDone:NO ];
-            resolve(s);
-        } else {
-            resolve([[NSData dataWithBytesNoCopy:plaintext length:ulength freeWhenDone:NO] base64EncodedStringWithOptions:0]);
+        NSData* key;
+        if ([passwordOrKey objectForKey:@"key"] && [passwordOrKey objectForKey:@"salt"]) {
+            key = [self b642bin:[passwordOrKey objectForKey:@"key"]];
+        } else if ([passwordOrKey objectForKey:@"password"] && [cipher objectForKey:@"salt"]) {
+            NSMutableDictionary* keySalt = [self crypto_pwhash:[passwordOrKey valueForKey:@"password"] salt:[cipher valueForKey:@"salt"]];
+            if (keySalt == NULL)
+                reject(ESODIUM, ERR_FAILURE, nil);
+            key = (NSData*)[keySalt objectForKey:@"key"];
         }
-       
+        NSNumber* length = (NSNumber*)[cipher valueForKey:@"length"];
+        unsigned long long ulength =[length unsignedLongLongValue];
         
-     
-    }
+        //size_t data_len = ulength + crypto_aead_xchacha20poly1305_ietf_abytes();
+        NSString* data = [cipher objectForKey:@"cipher"];
+        NSData* cipherb = [self b642bin:data ];
+        
+        //size_t iv_len = crypto_aead_xchacha20poly1305_ietf_npubbytes();
+        NSData* iv = [self b642bin:[cipher objectForKey:@"iv"]];
+        
+        unsigned char plaintext[ulength];
+        
+        if (crypto_aead_xchacha20poly1305_ietf_decrypt(plaintext, &ulength, NULL, [cipherb bytes], (unsigned long long)[cipherb length], NULL, 0,[iv bytes], [key bytes]) != 0) {
+            reject(ESODIUM, ERR_FAILURE, nil);
+        } else {
+            
+            if ([[cipher valueForKey:@"output"] isEqual:@"plain"]) {
+                NSString* s =[[NSString alloc] initWithBytesNoCopy:plaintext length:ulength encoding:NSUTF8StringEncoding freeWhenDone:NO ];
+                resolve(s);
+            } else {
+                resolve([[NSData dataWithBytesNoCopy:plaintext length:ulength freeWhenDone:NO] base64EncodedStringWithOptions:0]);
+            }
+            
+            
+            
+        }
+        
+    });
 }
 
 //RCT_EXPORT_METHOD(decrypt:(NSDictionary*)passwordOrKey cipher:(NSDictionary*)cipher resolve: (RCTPromiseResolveBlock)resolve reject:(RCTPromiseRejectBlock)reject)
