@@ -13,6 +13,8 @@
 #import "RCTSodium.h"
 #import "NAInterface.h"
 #import "NAAEAD.h"
+#import "NSData+XXHash.h"
+#import "SimpleFilesCache.h"
 
 @implementation RCTSodium
 
@@ -142,6 +144,100 @@ RCT_EXPORT_METHOD(hashPassword:(NSString*)password email:(NSString *)email resol
 }
 
 
+RCT_EXPORT_METHOD(encryptFile:(NSDictionary*)passwordOrKey data:(NSDictionary *)data resolve: (RCTPromiseResolveBlock)resolve reject:(RCTPromiseRejectBlock)reject)
+{
+    dispatch_async(dispatch_get_main_queue(), ^{
+    
+    NSData *dataa;
+    if ([data[@"type"]  isEqual: @"base64"]) {
+        dataa = [[NSData alloc] initWithBase64EncodedString:[data valueForKey:@"data"] options:0];
+    } else {
+        NSString *path = data[@"uri"];
+        NSFileManager *fmngr = [NSFileManager defaultManager];
+        if ([fmngr fileExistsAtPath:path]) {
+            dataa = [fmngr contentsAtPath:path];
+        } else {
+            reject(@"File Manager", @"File not found", nil);
+            return;
+        }
+        
+    }
+    
+    if (dataa != nil) {
+        NSDictionary *encryptedInfo = [self _encryptFile:passwordOrKey data:dataa];
+        resolve(encryptedInfo);
+    } else {
+        reject(ESODIUM, ERR_FAILURE, nil);
+    }
+        
+    });
+    
+}
+
+
+
+
+
+- (NSDictionary *) _encryptFile:(NSDictionary *)passwordOrKey data:(NSData *)data {
+    
+    NSData* salt;
+    NSData* key;
+    if ([passwordOrKey objectForKey:@"key"] && [passwordOrKey objectForKey:@"salt"]) {
+        salt = [self b642bin:[passwordOrKey objectForKey:@"salt"]];
+        key = [self b642bin:[passwordOrKey objectForKey:@"key"]];
+    } else if ([passwordOrKey objectForKey:@"password"]) {
+        NSMutableDictionary* keySalt = [self crypto_pwhash:[passwordOrKey valueForKey:@"password"] salt:NULL];
+        if (keySalt == NULL)
+            return nil;
+        key = (NSData*)[keySalt objectForKey:@"key"];
+        salt = (NSData*)[keySalt objectForKey:@"salt"];
+    }
+    
+    NSData *ddata = data;
+    
+    size_t size_t_v = crypto_aead_xchacha20poly1305_ietf_npubbytes();
+    NSData* iv = [self randombytes_buf:size_t_v];
+    
+    NAAEAD* AEAD = [[NAAEAD alloc] init];
+    NSError *error = nil;
+    
+    NSData *encryptedData = [AEAD encryptChaCha20Poly1305:ddata nonce:iv key:key additionalData:NULL error:&error];
+    if (error != nil) {
+        return nil;
+    } else {
+        NSMutableDictionary* dict = [NSMutableDictionary dictionary];
+        NSString* base64IV = [self bin2b64:iv];
+        NSString* base64Salt = [self bin2b64:salt];
+        
+        NSString *hash = [data xxh3];
+        
+        [dict setValue:base64IV forKey:@"iv"];
+        [dict setValue:base64Salt forKey:@"salt"];
+        dict[@"hash"] = hash;
+        dict[@"hashType"] = @"xxh3";
+        [self removeFileIfExists:hash];
+        [SimpleFilesCache saveToCacheDirectory:encryptedData withName:hash];
+        
+        [dict setObject:[NSNumber numberWithUnsignedLong:[ddata length]] forKey:@"length"];
+        
+        return dict;
+    }
+    
+    
+    
+}
+
+- (void) removeFileIfExists:(NSString *)name {
+    NSFileManager *fmngr = [NSFileManager defaultManager];
+    NSArray *paths = NSSearchPathForDirectoriesInDomains(NSCachesDirectory, NSUserDomainMask, YES);
+    NSString *cachePath = [paths objectAtIndex:0];
+    NSString *path = [cachePath stringByAppendingPathComponent:name];
+    if ([fmngr fileExistsAtPath:path]) {
+        [fmngr removeItemAtPath:path error:nil];
+    }
+}
+
+
 RCT_EXPORT_METHOD(encrypt:(NSDictionary*)passwordOrKey data:(NSDictionary *)data resolve: (RCTPromiseResolveBlock)resolve reject:(RCTPromiseRejectBlock)reject)
 {
     
@@ -168,7 +264,7 @@ RCT_EXPORT_METHOD(encrypt:(NSDictionary*)passwordOrKey data:(NSDictionary *)data
         } else {
             ddata = [[data valueForKey:@"data"] dataUsingEncoding:NSUTF8StringEncoding];
         }
-      
+        
         size_t size_t_v = crypto_aead_xchacha20poly1305_ietf_npubbytes();
         NSData* iv = [self randombytes_buf:size_t_v];
         
@@ -196,7 +292,7 @@ RCT_EXPORT_METHOD(encrypt:(NSDictionary*)passwordOrKey data:(NSDictionary *)data
 
 RCT_EXPORT_METHOD(decrypt:(NSDictionary*)passwordOrKey cipher:(NSDictionary*)cipher resolve: (RCTPromiseResolveBlock)resolve reject:(RCTPromiseRejectBlock)reject)
 {
-  dispatch_async(dispatch_get_main_queue(), ^{
+    dispatch_async(dispatch_get_main_queue(), ^{
         
         NSData* key;
         if ([passwordOrKey objectForKey:@"key"] && [passwordOrKey objectForKey:@"salt"]) {
@@ -209,9 +305,9 @@ RCT_EXPORT_METHOD(decrypt:(NSDictionary*)passwordOrKey cipher:(NSDictionary*)cip
         }
         NSString* data = [cipher objectForKey:@"cipher"];
         NSData* cipherb = [self b642bin:data];
-      
+        
         NSData* iv = [self b642bin:[cipher objectForKey:@"iv"]];
-      
+        
         NAAEAD* AEAD = [[NAAEAD alloc] init];
         NSError *error = nil;
         NSData *decryptedData = [AEAD decryptChaCha20Poly1305:cipherb nonce:iv key:key additionalData:NULL error:&error];
@@ -223,13 +319,54 @@ RCT_EXPORT_METHOD(decrypt:(NSDictionary*)passwordOrKey cipher:(NSDictionary*)cip
                 NSString* s =[[NSString alloc] initWithData:decryptedData encoding:NSUTF8StringEncoding];
                 resolve(s);
             }
-            
-            
-            
         }
         
-   });
+    });
 }
+
+RCT_EXPORT_METHOD(decryptFile:(NSDictionary*)passwordOrKey cipher:(NSDictionary*)cipher b64:(BOOL )b64 resolve: (RCTPromiseResolveBlock)resolve reject:(RCTPromiseRejectBlock)reject)
+{
+    
+    dispatch_async(dispatch_get_main_queue(), ^{
+        
+        NSData* key;
+        if ([passwordOrKey objectForKey:@"key"] && [passwordOrKey objectForKey:@"salt"]) {
+            key = [self b642bin:[passwordOrKey objectForKey:@"key"]];
+        } else if ([passwordOrKey objectForKey:@"password"] && [cipher objectForKey:@"salt"]) {
+            NSMutableDictionary* keySalt = [self crypto_pwhash:[passwordOrKey valueForKey:@"password"] salt:[cipher valueForKey:@"salt"]];
+            if (keySalt == NULL)
+                reject(ESODIUM, ERR_FAILURE, nil);
+            key = (NSData*)[keySalt objectForKey:@"key"];
+        }
+        
+        NSData* cipherb = [SimpleFilesCache cachedDataWithName:cipher[@"hash"]];
+        
+        
+        
+        NSData* iv = [self b642bin:[cipher objectForKey:@"iv"]];
+        
+        NAAEAD* AEAD = [[NAAEAD alloc] init];
+        NSError *error = nil;
+        NSData *decryptedData = [AEAD decryptChaCha20Poly1305:cipherb nonce:iv key:key additionalData:NULL error:&error];
+        
+        if (error != nil) {
+            reject(ESODIUM, ERR_FAILURE, nil);
+        } else {
+            if (b64) {
+                resolve([self bin2b64:decryptedData]);
+            } else {
+                NSString *path = cipher[@"uri"];
+                NSFileManager *fmngr = [NSFileManager defaultManager];
+                path = [path stringByAppendingString:cipher[@"fileName"]];
+                [fmngr createFileAtPath:path contents:decryptedData attributes:nil];
+                resolve(nil);
+            }
+        
+        }
+        
+    });
+}
+
 
 
 @end

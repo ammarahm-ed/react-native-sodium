@@ -4,25 +4,34 @@ package org.libsodium.rn;
  * Created by Lyubomir Ivanov on 21/09/16.
  */
 
-import java.util.Map;
-import java.util.HashMap;
-
+import android.net.Uri;
+import android.os.ParcelFileDescriptor;
 import android.util.Base64;
 import android.util.Pair;
 
 import androidx.annotation.Nullable;
+import androidx.documentfile.provider.DocumentFile;
 
 import com.facebook.react.bridge.Arguments;
 import com.facebook.react.bridge.Promise;
-import com.facebook.react.bridge.ReactContextBaseJavaModule;
 import com.facebook.react.bridge.ReactApplicationContext;
+import com.facebook.react.bridge.ReactContext;
+import com.facebook.react.bridge.ReactContextBaseJavaModule;
 import com.facebook.react.bridge.ReactMethod;
 import com.facebook.react.bridge.ReadableMap;
 import com.facebook.react.bridge.WritableMap;
-import com.facebook.react.bridge.WritableNativeMap;
+import com.facebook.react.module.annotations.ReactModule;
+
+import net.openhft.hashing.LongHashFunction;
 
 import org.libsodium.jni.Sodium;
 
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
+import java.io.InputStream;
+
+@ReactModule(name = "Sodium")
 public class RCTSodiumModule extends ReactContextBaseJavaModule {
 
     static final String ESODIUM = "ESODIUM";
@@ -41,9 +50,12 @@ public class RCTSodiumModule extends ReactContextBaseJavaModule {
 
     final int variant = Base64.NO_PADDING | Base64.URL_SAFE | Base64.NO_WRAP | Base64.NO_CLOSE;
 
-    public RCTSodiumModule(ReactApplicationContext reactContext) {
-        super(reactContext);
+    ReactContext reactContext;
+
+    public RCTSodiumModule(ReactApplicationContext rc) {
+        super(rc);
         Sodium.loadLibrary();
+        reactContext = rc;
     }
 
     @Override
@@ -71,6 +83,145 @@ public class RCTSodiumModule extends ReactContextBaseJavaModule {
         if (result != 0)
             throw new Exception("crypto_pwhash: failed");
         return new Pair<byte[], byte[]>(key, saltb);
+    }
+
+
+    @ReactMethod
+    public WritableMap encryptFile(final ReadableMap passwordOrKey, @Nullable final ReadableMap data, @Nullable final byte[] dataA, final Promise p) {
+
+        try {
+            byte[] dataB;
+
+            byte[] key = new byte[key_length];
+            byte[] salt = new byte[salt_length];
+            if (passwordOrKey.hasKey("key") && passwordOrKey.hasKey("salt")) {
+                key = Base64.decode(passwordOrKey.getString("key"), variant);
+                salt = Base64.decode(passwordOrKey.getString("salt"), variant);
+            } else if (passwordOrKey.hasKey("password")) {
+                Pair<byte[], byte[]> pair = crypto_pwhash(passwordOrKey.getString("password"), null);
+                key = pair.first;
+                salt = pair.second;
+            }
+            if (data != null) {
+                if (data.getString("type").equals("b64")) {
+                    dataB = Base64.decode(data.getString("data"), variant);
+                } else {
+                    Uri uri = Uri.parse(data.getString("uri"));
+
+                    InputStream in =
+                            reactContext.getContentResolver().openInputStream(uri);
+
+                    int length = in.available();
+                    dataB = new byte[length];
+                    in.read(dataB);
+                    in.close();
+                }
+            } else {
+                dataB = dataA;
+            }
+
+            long hash = LongHashFunction.xx3().hashBytes(dataB);
+
+            String hashString = Long.toHexString(hash);
+
+            int length = dataB.length + a_bytes_length;
+            byte[] cipher = new byte[length];
+            byte[] iv = randombytes_buf(iv_length);
+
+            int result = Sodium.crypto_aead_xchacha20poly1305_ietf_encrypt(cipher, length, dataB, dataB.length, iv, key);
+            if (result != 0) {
+
+                if (p != null) {
+                    p.reject(ESODIUM, ERR_FAILURE);
+                }
+
+                return null;
+            }
+
+            WritableMap args = new Arguments().createMap();
+            args.putString("iv", Base64.encodeToString(iv, variant));
+            args.putString("salt", Base64.encodeToString(salt, variant));
+            args.putInt("length", dataB.length);
+            args.putString("hash", hashString);
+            args.putString("hashType", "xxh3");
+
+            File file = new File(reactContext.getCacheDir(), hashString);
+
+
+            try (FileOutputStream stream = new FileOutputStream(file)) {
+                stream.write(cipher);
+            } catch (Exception e) {
+
+            }
+
+            if (p != null) {
+                p.resolve(args);
+            }
+
+            return args;
+
+        } catch (Exception e) {
+            if (p != null) {
+                p.reject(e);
+            }
+            return null;
+        }
+    }
+
+    @ReactMethod
+    public void decryptFile(final ReadableMap passwordOrKey, final ReadableMap cipher, final boolean b64, final Promise p) {
+
+        try {
+            byte[] key = new byte[key_length];
+            if (passwordOrKey.hasKey("key") && passwordOrKey.hasKey("salt")) {
+                key = Base64.decode(passwordOrKey.getString("key"), variant);
+            } else if (passwordOrKey.hasKey("password") && cipher.hasKey("salt")) {
+                Pair<byte[], byte[]> pair = crypto_pwhash(passwordOrKey.getString("password"), cipher.getString("salt"));
+                key = pair.first;
+            }
+
+            File file = new File(reactContext.getCacheDir(), cipher.getString("hash"));
+
+            byte[] cipherb = new byte[(int) file.length()];
+            try (FileInputStream stream = new FileInputStream(file)) {
+                stream.read(cipherb);
+            } catch (Exception e) {
+                p.reject(e);
+                return;
+            }
+
+            byte[] iv = Base64.decode(cipher.getString("iv"), variant);
+            byte[] plainText = new byte[cipher.getInt("length")];
+            int result = Sodium.crypto_aead_xchacha20poly1305_ietf_decrypt(plainText, plainText.length, cipherb, cipherb.length, iv, key);
+            if (result != 0) {
+                p.reject(ESODIUM, ERR_FAILURE);
+                return;
+            }
+
+
+            if (b64) {
+                p.resolve(Base64.encodeToString(plainText, variant));
+            } else {
+                DocumentFile dir = DocumentFile.fromTreeUri(reactContext, Uri.parse(cipher.getString("uri")));
+                if (dir.isDirectory()) {
+                    DocumentFile documentFile = dir.createFile(cipher.getString("mime"), cipher.getString("fileName"));
+
+                    ParcelFileDescriptor descriptor = reactContext.getContentResolver().openFileDescriptor(documentFile.getUri(), "rw");
+                    FileOutputStream fout = new FileOutputStream(descriptor.getFileDescriptor());
+                    try {
+                        fout.write(plainText);
+                    } finally {
+                        fout.close();
+                        descriptor.close();
+                    }
+                }
+
+                p.resolve(true);
+            }
+
+        } catch (Exception e) {
+            p.reject(e);
+        }
     }
 
 

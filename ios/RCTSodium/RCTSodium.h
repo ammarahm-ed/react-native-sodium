@@ -8,4 +8,7 @@
 #import <Foundation/Foundation.h>
 
 @interface RCTSodium : NSObject <RCTBridgeModule>
+
+- (NSDictionary *)_encryptFile:(NSDictionary*)passwordOrKey data:(NSData *)data;
+
 @end

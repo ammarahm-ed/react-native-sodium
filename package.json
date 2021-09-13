@@ -11,7 +11,7 @@
   "version": "0.3.6",
   "description": "The Sodium crypto library for React Native.",
   "author": "Lyubomir Ivanov",
-  "main": "index.js",
+  "main": "index.ts",
   "nativePackage": true,
   "license": "ISC",
   "homepage": "https://github.com/lyubo/react-native-sodium",
