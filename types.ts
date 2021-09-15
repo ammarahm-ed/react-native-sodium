@@ -10,6 +10,7 @@ export interface ImageLibraryOptions {
   password?:string;
   key?:string;
   salt?:string;
+  encryptToFile?:boolean
 }
 
 export interface Asset {

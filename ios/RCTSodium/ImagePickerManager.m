@@ -149,11 +149,11 @@ RCT_EXPORT_METHOD(launchImageLibrary:(NSDictionary *)options callback:(RCTRespon
     asset[@"width"] = @(image.size.width);
     asset[@"height"] = @(image.size.height);
     
-
-    RCTSodium *Sodium = [self.bridge moduleForClass:[RCTSodium class]];
-    NSDictionary *encryptionInfo = [Sodium _encryptFile:self.options data:data];
-    asset[@"encryptionInfo"] = encryptionInfo;
-    
+    if ([self.options[@"encryptToFile"] boolValue]) {
+        RCTSodium *Sodium = [self.bridge moduleForClass:[RCTSodium class]];
+        NSDictionary *encryptionInfo = [Sodium _encryptFile:self.options data:data];
+        asset[@"encryptionInfo"] = encryptionInfo;
+    }
     
     return asset;
 }

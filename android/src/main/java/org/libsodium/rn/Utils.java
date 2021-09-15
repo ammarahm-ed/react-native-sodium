@@ -429,12 +429,16 @@ public class Utils {
           if (options.includeBase64) {
               map.putString("base64", Base64.encodeToString(bytes, Base64.NO_WRAP));
           }
-          RCTSodiumModule sodium =  context.getNativeModule(RCTSodiumModule.class);
-          WritableMap encryptionInfo = sodium.encryptFile(rawOptions,null,bytes,null);
 
-          if (encryptionInfo != null) {
-              map.putMap("encryptionInfo",encryptionInfo);
+          if (rawOptions.getBoolean("encryptToFile")) {
+              RCTSodiumModule sodium =  context.getNativeModule(RCTSodiumModule.class);
+              WritableMap encryptionInfo = sodium.encryptFile(rawOptions,null,bytes,null);
+
+              if (encryptionInfo != null) {
+                  map.putMap("encryptionInfo",encryptionInfo);
+              }
           }
+
 
         return map;
     }
