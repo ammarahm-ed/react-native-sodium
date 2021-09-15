@@ -19,6 +19,7 @@ import android.os.ParcelFileDescriptor;
 import android.provider.MediaStore;
 import android.provider.OpenableColumns;
 import android.util.Base64;
+import android.util.Log;
 import android.webkit.MimeTypeMap;
 
 import androidx.core.app.ActivityCompat;
@@ -429,8 +430,8 @@ public class Utils {
           if (options.includeBase64) {
               map.putString("base64", Base64.encodeToString(bytes, Base64.NO_WRAP));
           }
-
-          if (rawOptions.getBoolean("encryptToFile")) {
+        
+          if (rawOptions != null && rawOptions.getBoolean("encryptToFile")) {
               RCTSodiumModule sodium =  context.getNativeModule(RCTSodiumModule.class);
               WritableMap encryptionInfo = sodium.encryptFile(rawOptions,null,bytes,null);
 

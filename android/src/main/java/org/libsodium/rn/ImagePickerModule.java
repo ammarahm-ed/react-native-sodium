@@ -71,8 +71,8 @@ public class ImagePickerModule extends ReactContextBaseJavaModule implements Act
         }
 
         this.callback = callback;
-        this.options = new Options(options);
         this.rawOptions = options;
+        this.options = new Options(options);
 
         if (this.options.saveToPhotos && Build.VERSION.SDK_INT <= Build.VERSION_CODES.P && !hasPermission(currentActivity)) {
             callback.invoke(getErrorMap(errPermission, null));
@@ -124,6 +124,7 @@ public class ImagePickerModule extends ReactContextBaseJavaModule implements Act
         }
 
         this.callback = callback;
+        this.rawOptions = options;
         this.options = new Options(options);
 
         int requestCode;
@@ -164,7 +165,7 @@ public class ImagePickerModule extends ReactContextBaseJavaModule implements Act
 
     void onAssetsObtained(List<Uri> fileUris) {
         try {
-            callback.invoke(getResponseMap(fileUris, options,rawOptions, reactContext));
+            callback.invoke(getResponseMap(fileUris, options,this.rawOptions, reactContext));
         } catch (RuntimeException exception) {
             callback.invoke(getErrorMap(errOthers, exception.getMessage()));
         } finally {
