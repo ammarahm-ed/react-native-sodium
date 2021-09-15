@@ -2,6 +2,7 @@ export type Callback = (response: ImagePickerResponse) => any;
 
 export interface ImageLibraryOptions {
   mediaType: MediaType;
+  selectionLimit?: number;
   maxWidth?: number;
   maxHeight?: number;
   quality?: PhotoQuality;

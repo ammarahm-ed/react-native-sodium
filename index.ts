@@ -10,9 +10,11 @@ const DEFAULT_OPTIONS: CameraOptions = {
   maxWidth: 0,
   maxHeight: 0,
   includeBase64: false,
+  cameraType: 'back',
+  selectionLimit: 1,
   saveToPhotos: false,
   durationLimit: 0,
-  cameraType: 'back'
+  encryptToFile:false
 };
 
 export function launchCamera(options: CameraOptions, callback: Callback) {
