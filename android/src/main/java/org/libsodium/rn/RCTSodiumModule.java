@@ -49,6 +49,7 @@ public class RCTSodiumModule extends ReactContextBaseJavaModule {
     final int a_bytes_length = 16;
 
     final int variant = Base64.NO_PADDING | Base64.URL_SAFE | Base64.NO_WRAP | Base64.NO_CLOSE;
+    final int variant2 = Base64.NO_WRAP | Base64.NO_CLOSE;
 
     ReactContext reactContext;
 
@@ -103,8 +104,8 @@ public class RCTSodiumModule extends ReactContextBaseJavaModule {
                 salt = pair.second;
             }
             if (data != null) {
-                if (data.getString("type").equals("b64")) {
-                    dataB = Base64.decode(data.getString("data"), variant);
+                if (data.getString("type").equals("base64")) {
+                    dataB = Base64.decode(data.getString("data"), variant2);
                 } else {
                     Uri uri = Uri.parse(data.getString("uri"));
 
@@ -200,7 +201,7 @@ public class RCTSodiumModule extends ReactContextBaseJavaModule {
 
 
             if (b64) {
-                p.resolve(Base64.encodeToString(plainText, variant));
+                p.resolve(Base64.encodeToString(plainText, variant2));
             } else {
                 DocumentFile dir = DocumentFile.fromTreeUri(reactContext, Uri.parse(cipher.getString("uri")));
                 if (dir.isDirectory()) {
