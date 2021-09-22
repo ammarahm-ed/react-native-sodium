@@ -86,8 +86,13 @@ public class RCTSodiumModule extends ReactContextBaseJavaModule {
         return new Pair<byte[], byte[]>(key, saltb);
     }
 
-
     @ReactMethod
+    public void encryptFile(final ReadableMap passwordOrKey, @Nullable final ReadableMap data,  final Promise p) {
+
+        this.encryptFile(passwordOrKey,data,null,p);
+
+    }
+
     public WritableMap encryptFile(final ReadableMap passwordOrKey, @Nullable final ReadableMap data, @Nullable final byte[] dataA, final Promise p) {
 
         try {
@@ -105,7 +110,7 @@ public class RCTSodiumModule extends ReactContextBaseJavaModule {
             }
             if (data != null) {
                 if (data.getString("type").equals("base64")) {
-                    dataB = Base64.decode(data.getString("data"), variant2);
+                    dataB = Base64.decode(data.getString("data"), Base64.NO_WRAP);
                 } else {
                     Uri uri = Uri.parse(data.getString("uri"));
 
