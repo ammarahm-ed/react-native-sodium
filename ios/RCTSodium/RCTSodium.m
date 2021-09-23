@@ -353,7 +353,7 @@ RCT_EXPORT_METHOD(decryptFile:(NSDictionary*)passwordOrKey cipher:(NSDictionary*
             reject(ESODIUM, ERR_FAILURE, nil);
         } else {
             if (b64) {
-                resolve([self bin2b64:decryptedData]);
+                resolve([decryptedData base64String]);
             } else {
                 NSString *path = cipher[@"uri"];
                 NSFileManager *fmngr = [NSFileManager defaultManager];
