@@ -88,10 +88,40 @@ public class RCTSodiumModule extends ReactContextBaseJavaModule {
 
     @ReactMethod
     public void encryptFile(final ReadableMap passwordOrKey, @Nullable final ReadableMap data,  final Promise p) {
-
         this.encryptFile(passwordOrKey,data,null,p);
+    }
+
+    @ReactMethod
+    public void hashFile(@Nullable final ReadableMap data, final Promise p) {
+        p.resolve(xxh3(data,null));
+    }
+
+    public String xxh3(@Nullable final ReadableMap data,@Nullable final byte[] dataA) {
+       try {
+        byte[] dataB;
+            if (data.getString("type").equals("base64")) {
+                dataB = Base64.decode(data.getString("data"), Base64.NO_WRAP);
+            } else {
+                Uri uri = Uri.parse(data.getString("uri"));
+
+                InputStream in =
+                        reactContext.getContentResolver().openInputStream(uri);
+
+                int length = in.available();
+                dataB = new byte[length];
+                in.read(dataB);
+                in.close();
+            }
+        long hash = LongHashFunction.xx3().hashBytes(dataB);
+
+        return Long.toHexString(hash);
+       } catch (Exception e) {
+        return null;
+       }
 
     }
+
+
 
     public WritableMap encryptFile(final ReadableMap passwordOrKey, @Nullable final ReadableMap data, @Nullable final byte[] dataA, final Promise p) {
 
@@ -126,9 +156,15 @@ public class RCTSodiumModule extends ReactContextBaseJavaModule {
                 dataB = dataA;
             }
 
-            long hash = LongHashFunction.xx3().hashBytes(dataB);
+            String hashString = null;
+            if (data != null && data.hasKey("hash")) {
+                hashString = data.getString("hash");
+            }
 
-            String hashString = Long.toHexString(hash);
+            if (hashString == null) {
+                long hash = LongHashFunction.xx3().hashBytes(dataB);
+                hashString = Long.toHexString(hash);
+            }
 
             int length = dataB.length + a_bytes_length;
             byte[] cipher = new byte[length];
@@ -136,6 +172,8 @@ public class RCTSodiumModule extends ReactContextBaseJavaModule {
 
             int result = Sodium.crypto_aead_xchacha20poly1305_ietf_encrypt(cipher, length, dataB, dataB.length, iv, key);
             if (result != 0) {
+
+
 
                 if (p != null) {
                     p.reject(ESODIUM, ERR_FAILURE);
@@ -152,8 +190,10 @@ public class RCTSodiumModule extends ReactContextBaseJavaModule {
             args.putString("hashType", "xxh3");
 
             File file = new File(reactContext.getCacheDir(), hashString);
-
-
+            if (file.exists()) {
+                file.delete();
+                file.createNewFile();
+            }
             try (FileOutputStream stream = new FileOutputStream(file)) {
                 stream.write(cipher);
             } catch (Exception e) {
@@ -188,18 +228,18 @@ public class RCTSodiumModule extends ReactContextBaseJavaModule {
 
             File file = new File(reactContext.getCacheDir(), cipher.getString("hash"));
 
-            byte[] cipherb = new byte[(int) file.length()];
-            try (FileInputStream stream = new FileInputStream(file)) {
-                stream.read(cipherb);
-            } catch (Exception e) {
-                p.reject(e);
-                return;
-            }
+            InputStream in =
+                    reactContext.getContentResolver().openInputStream(Uri.fromFile(file));
+            int length = in.available();
+            byte[] cipherb = new byte[length];
+            in.read(cipherb);
+            in.close();
 
             byte[] iv = Base64.decode(cipher.getString("iv"), variant);
             byte[] plainText = new byte[cipher.getInt("length")];
             int result = Sodium.crypto_aead_xchacha20poly1305_ietf_decrypt(plainText, plainText.length, cipherb, cipherb.length, iv, key);
             if (result != 0) {
+
                 p.reject(ESODIUM, ERR_FAILURE);
                 return;
             }
@@ -210,8 +250,10 @@ public class RCTSodiumModule extends ReactContextBaseJavaModule {
             } else {
                 DocumentFile dir = DocumentFile.fromTreeUri(reactContext, Uri.parse(cipher.getString("uri")));
                 if (dir.isDirectory()) {
-                    DocumentFile documentFile = dir.createFile(cipher.getString("mime"), cipher.getString("fileName"));
+                    DocumentFile fileExists = dir.findFile(cipher.getString("fileName"));
+                    if (fileExists != null) fileExists.delete();
 
+                    DocumentFile documentFile = dir.createFile(cipher.getString("mime"), cipher.getString("fileName"));
                     ParcelFileDescriptor descriptor = reactContext.getContentResolver().openFileDescriptor(documentFile.getUri(), "rw");
                     FileOutputStream fout = new FileOutputStream(descriptor.getFileDescriptor());
                     try {
@@ -226,7 +268,7 @@ public class RCTSodiumModule extends ReactContextBaseJavaModule {
             }
 
         } catch (Exception e) {
-            p.reject(e);
+            p.reject(e.getMessage());
         }
     }
 

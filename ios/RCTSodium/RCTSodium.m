@@ -143,6 +143,24 @@ RCT_EXPORT_METHOD(hashPassword:(NSString*)password email:(NSString *)email resol
     
 }
 
+RCT_EXPORT_METHOD(hashFile:(NSDictionary *)data resolve: (RCTPromiseResolveBlock)resolve reject:(RCTPromiseRejectBlock)reject)
+{
+    NSData *dataa;
+    if ([data[@"type"]  isEqual: @"base64"]) {
+        dataa = [[NSData alloc] initWithBase64EncodedString:[data valueForKey:@"data"] options:0];
+    } else {
+        NSString *path = data[@"uri"];
+        NSFileManager *fmngr = [NSFileManager defaultManager];
+        if ([fmngr fileExistsAtPath:path]) {
+            dataa = [fmngr contentsAtPath:path];
+        } else {
+            reject(@"File Manager", @"File not found", nil);
+            return;
+        }
+    }
+    resolve([dataa xxh3]);
+}
+
 
 RCT_EXPORT_METHOD(encryptFile:(NSDictionary*)passwordOrKey data:(NSDictionary *)data resolve: (RCTPromiseResolveBlock)resolve reject:(RCTPromiseRejectBlock)reject)
 {

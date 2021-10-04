@@ -49,11 +49,16 @@ const Sodium:{
   decrypt(password:string,data:object):Promise<string>
   deriveKey(password:string,salt:string):Promise<PASSWORD>
   decryptFile(password:{key?:string,salt?:string,password?:string},cipher:FileCipher,b64:boolean):Promise<string>
-  encryptFile(password:{key?:string,salt?:string,password?:string,data:{
+  hashFile(data:{
     uri:string,
-    type:string,
+    type:"base64" | "url",
     data?:string,
-  }}):Promise<FileCipher>
+  }):string
+  encryptFile(password:{key?:string,salt?:string,password?:string},data:{
+    uri:string,
+    type:"base64" | "url",
+    data?:string,
+  }):Promise<FileCipher>
 } = NativeModules.Sodium;
 
 export default Sodium;
