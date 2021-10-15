@@ -431,14 +431,14 @@ public class Utils {
               map.putString("base64", Base64.encodeToString(bytes, Base64.NO_WRAP));
           }
         
-          if (rawOptions != null && rawOptions.getBoolean("encryptToFile")) {
-              RCTSodiumModule sodium =  context.getNativeModule(RCTSodiumModule.class);
-              WritableMap encryptionInfo = sodium.encryptFile(rawOptions,null,bytes,null);
+         // if (rawOptions != null && rawOptions.getBoolean("encryptToFile")) {
+           //   RCTSodiumModule sodium =  context.getNativeModule(RCTSodiumModule.class);
+              //WritableMap encryptionInfo = sodium.encryptFile(rawOptions,null,bytes,null);
 
-              if (encryptionInfo != null) {
-                  map.putMap("encryptionInfo",encryptionInfo);
-              }
-          }
+            //  if (encryptionInfo != null) {
+            //      map.putMap("encryptionInfo",encryptionInfo);
+            //  }
+        //  }
 
 
         return map;
