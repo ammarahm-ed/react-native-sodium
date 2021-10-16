@@ -31,5 +31,26 @@
     return [NSString stringWithFormat:@"%llx", val];
 }
 
+- (NSString *)xxh64 {
+    
+    static XXH64_state_t* state = NULL;
+    static dispatch_once_t onceToken;
+    dispatch_once(&onceToken, ^{
+        state = XXH64_createState();
+    });
+    
+    XXH_errorcode ec = XXH64_reset(state, 0x5bd1e995);
+    
+    if (ec != XXH_OK) {
+        @throw NSGenericException;
+    }
+    ec = XXH64_update (state, [self bytes], [self length]);
+    if (ec != XXH_OK) {
+        @throw NSGenericException;
+    }
+    unsigned long long val = XXH64_digest(state);
+    return [NSString stringWithFormat:@"%llx", val];
+}
+
 
 @end

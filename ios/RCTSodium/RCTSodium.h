@@ -6,8 +6,9 @@
 //
 
 #import <Foundation/Foundation.h>
+#import <React/RCTEventEmitter.h>
 
-@interface RCTSodium : NSObject <RCTBridgeModule>
+@interface RCTSodium : RCTEventEmitter <RCTBridgeModule>
 
 - (NSDictionary *)_encryptFile:(NSDictionary*)passwordOrKey data:(NSData *)data;
 

@@ -27,5 +27,6 @@
 
 -(void)saveImageToCacheDirectory:(UIImage *)image withName:(NSString *)name;
 -(UIImage *)cachedImageWithName:(NSString *)name;
++(NSString *)pathForName:(NSString *)name;
 
 @end
