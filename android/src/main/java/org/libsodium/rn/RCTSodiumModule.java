@@ -94,7 +94,6 @@ public class RCTSodiumModule extends ReactContextBaseJavaModule {
         else
             Sodium.randombytes_buf(saltb, saltb.length);
         int memlimit = 1024 * 1024 * 8;
-
         int result = Sodium.crypto_pwhash(key, key_length, passwordb, passwordb.length, saltb, 3, new NativeLong(memlimit), PwHash.Alg.PWHASH_ALG_ARGON2I13.getValue());
 
         if (result != 0)
@@ -435,7 +434,7 @@ public class RCTSodiumModule extends ReactContextBaseJavaModule {
             byte[] key = new byte[32];
             byte[] passwordb = password.getBytes();
 
-            int result = Sodium.crypto_pwhash(key, 32, passwordb, passwordb.length, hash, 3, new NativeLong(1024 * 1024 * 64), PwHash.Alg.PWHASH_ALG_ARGON2I13.getValue());
+            int result = Sodium.crypto_pwhash(key, 32, passwordb, passwordb.length, hash, 3, new NativeLong(1024 * 1024 * 64), PwHash.Alg.PWHASH_ALG_ARGON2ID13.getValue());
 
             if (result != 0)
                 throw new Exception("crypto_pwhash: failed");
