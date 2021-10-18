@@ -19,6 +19,7 @@ import com.facebook.react.bridge.ReactMethod;
 import com.facebook.react.bridge.ReadableMap;
 import com.facebook.react.bridge.WritableMap;
 import com.facebook.react.module.annotations.ReactModule;
+import com.facebook.react.modules.core.DeviceEventManagerModule;
 import com.goterl.lazysodium.LazySodiumAndroid;
 import com.goterl.lazysodium.SodiumAndroid;
 import com.goterl.lazysodium.interfaces.AEAD;
@@ -55,6 +56,16 @@ public class RCTSodiumModule extends ReactContextBaseJavaModule {
     LazySodiumAndroid lazySodium;
 
     ReactContext reactContext;
+
+    public void onSodiumProgress(double total, double progress) {
+        WritableMap params = Arguments.createMap();
+        params.putDouble("total",total);
+        params.putDouble("progress",progress);
+
+        this.reactContext
+                .getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter.class)
+                .emit("onSodiumProgress", params);
+    }
 
     public RCTSodiumModule(ReactApplicationContext rc) {
         super(rc);
@@ -98,10 +109,10 @@ public class RCTSodiumModule extends ReactContextBaseJavaModule {
 
     @ReactMethod
     public void hashFile(@Nullable final ReadableMap data, final Promise p) {
-        p.resolve(xxhash64(data, null));
+        p.resolve(xxhash64(data));
     }
 
-    public String xxhash64(@Nullable final ReadableMap data, @Nullable final byte[] dataA) {
+    public String xxhash64(@Nullable final ReadableMap data) {
         XXHashFactory factory = XXHashFactory.fastestInstance();
         try {
             InputStream inputStream = getInputStream(data);
@@ -121,7 +132,6 @@ public class RCTSodiumModule extends ReactContextBaseJavaModule {
         } catch (Exception e) {
             return null;
         }
-
     }
 
     public WritableMap getCipherData(byte[] iv, byte[] salt, int length, String hash, byte[] cipher) {
@@ -201,7 +211,7 @@ public class RCTSodiumModule extends ReactContextBaseJavaModule {
     public void encryptFile(final ReadableMap passwordOrKey, @Nullable final ReadableMap data, @Nullable final byte[] dataA, final Promise p) {
 
         try {
-            int CHUNK_SIZE = 5 * 1024 * 1024;
+            int CHUNK_SIZE = 512 * 1024;
             Pair<byte[], byte[]> pair = getKey(passwordOrKey, null);
 
             byte[] key = pair.first;
@@ -240,7 +250,7 @@ public class RCTSodiumModule extends ReactContextBaseJavaModule {
     public void decryptFile(final ReadableMap passwordOrKey, final ReadableMap cipher, final boolean b64, final Promise p) {
 
         try {
-            int CHUNK_SIZE = 5 * 1024 * 1024 + Sodium.crypto_secretstream_xchacha20poly1305_abytes();
+            int CHUNK_SIZE = 512 * 1024 + Sodium.crypto_secretstream_xchacha20poly1305_abytes();
             Pair<byte[], byte[]> pair = getKey(passwordOrKey, cipher.getString("salt"));
             byte[] key = pair.first;
 
@@ -302,11 +312,12 @@ public class RCTSodiumModule extends ReactContextBaseJavaModule {
                     outputStream.close();
                     return -1;
                 }
+                onSodiumProgress(totalChunks,i);
                 outputStream.flush();
             }
             inputStream.close();
             outputStream.close();
-            return 1;
+            return 0;
         } catch (Exception e) {
             return -1;
         }
