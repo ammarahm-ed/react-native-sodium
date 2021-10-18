@@ -52,8 +52,8 @@ public class RCTSodiumModule extends ReactContextBaseJavaModule {
 
     final int variant = Base64.NO_PADDING | Base64.URL_SAFE | Base64.NO_WRAP | Base64.NO_CLOSE;
 
-    SodiumAndroid Sodium;
-    LazySodiumAndroid lazySodium;
+    final SodiumAndroid Sodium;
+    final LazySodiumAndroid lazySodium;
 
     ReactContext reactContext;
 
@@ -70,6 +70,7 @@ public class RCTSodiumModule extends ReactContextBaseJavaModule {
     public RCTSodiumModule(ReactApplicationContext rc) {
         super(rc);
         Sodium = new SodiumAndroid();
+        lazySodium = new LazySodiumAndroid(Sodium);
         reactContext = rc;
     }
 
@@ -221,9 +222,7 @@ public class RCTSodiumModule extends ReactContextBaseJavaModule {
             int length = inputStream.available();
 
             byte[] header = new byte[AEAD.XCHACHA20POLY1305_IETF_NPUBBYTES];
-            if (lazySodium == null) {
-                lazySodium = new LazySodiumAndroid(Sodium);
-            }
+
             SecretStream.State state = lazySodium.cryptoSecretStreamInitPush(header, Key.fromBytes(key));
 
             FileOutputStream outputStream = new FileOutputStream(getFileFromCache(hash));
@@ -265,6 +264,7 @@ public class RCTSodiumModule extends ReactContextBaseJavaModule {
             }
 
             byte[] iv = Base64.decode(cipher.getString("iv"), variant);
+
             SecretStream.State state = lazySodium.cryptoSecretStreamInitPull(iv, Key.fromBytes(key));
 
             File file = new File(reactContext.getCacheDir(), cipher.getString("hash"));
@@ -297,7 +297,8 @@ public class RCTSodiumModule extends ReactContextBaseJavaModule {
 
         try {
             int length = inputStream.available();
-            double totalChunks = Math.max(Math.ceil(length / chunkSize), 1);
+            double totalChunks = Math.max(Math.ceil((float) length / (float) chunkSize), 1);
+
             for (int i = 0; i < totalChunks; i++) {
                 int start = i * chunkSize;
                 int end = Math.min(start + chunkSize, length);
@@ -399,7 +400,8 @@ public class RCTSodiumModule extends ReactContextBaseJavaModule {
             }
 
             if (cipher.getString("output").equals("plain")) {
-                p.resolve(new String(plainText));
+                String plain = new String(plainText);
+                p.resolve(plain);
             } else {
                 p.resolve(Base64.encodeToString(plainText, variant));
             }
