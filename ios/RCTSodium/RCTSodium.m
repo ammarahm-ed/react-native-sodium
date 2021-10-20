@@ -90,7 +90,7 @@ RCT_EXPORT_MODULE();
     unsigned char *key = (unsigned char *) sodium_malloc(key_len);
     
     unsigned long long ops = 3;
-    unsigned long long memlimit = 256 * 256 * 8;
+    unsigned long long memlimit = 1024 * 1024 * 8;
     
     if (crypto_pwhash(key, key_len,
                       dpassword,
@@ -136,7 +136,7 @@ RCT_EXPORT_METHOD(hashPassword:(NSString*)password email:(NSString *)email resol
         
         int result = crypto_generichash(hash, 16, (unsigned char *) input, input_len, NULL, 0);
         
-        unsigned long long memlimit = 256 * 256 * 64;
+        unsigned long long memlimit = 1024 * 1024 * 64;
         
         if (result != 0) reject(@"Error", nil,nil);
         
@@ -491,7 +491,7 @@ RCT_EXPORT_METHOD(decryptFile:(NSDictionary*)passwordOrKey cipher:(NSDictionary*
         
         if (b64) {
             NSData *data = [outputStream propertyForKey:NSStreamDataWrittenToMemoryStreamKey];
-            resolve([self bin2b64:data]);
+            resolve([data base64String]);
         } else {
             resolve(nil);
         }
