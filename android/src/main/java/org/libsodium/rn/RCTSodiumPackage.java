@@ -19,7 +19,6 @@ public class RCTSodiumPackage implements ReactPackage {
     @Override
     public List<NativeModule> createNativeModules(ReactApplicationContext reactContext) {
         List<NativeModule> modules = new ArrayList<>();
-        modules.add(new ImagePickerModule(reactContext));
         modules.add(new RCTSodiumModule(reactContext));
 
         return  modules;
