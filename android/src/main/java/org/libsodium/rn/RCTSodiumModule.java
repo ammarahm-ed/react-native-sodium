@@ -165,6 +165,16 @@ public class RCTSodiumModule extends ReactContextBaseJavaModule {
 
     }
 
+    @ReactMethod
+    public void addListener(String eventName) {
+        // Keep: Required for RN built in Event Emitter Calls.
+    }
+
+    @ReactMethod
+    public void removeListeners(Integer count) {
+        // Keep: Required for RN built in Event Emitter Calls.
+    }
+
     public DocumentFile getFileFromUri(ReadableMap cipher) {
         DocumentFile dir = DocumentFile.fromTreeUri(reactContext, Uri.parse(cipher.getString("uri")));
         DocumentFile fileExists = dir.findFile(cipher.getString("fileName"));
