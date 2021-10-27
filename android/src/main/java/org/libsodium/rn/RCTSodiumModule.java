@@ -206,7 +206,8 @@ public class RCTSodiumModule extends ReactContextBaseJavaModule {
         InputStream inputStream;
 
         if (data.hasKey("type") && data.getString("type").equals("base64")) {
-            inputStream = new Base64InputStream(new ByteArrayInputStream(data.getString("data").getBytes()), Base64.NO_WRAP);
+            byte[] bytes = Base64.decode(data.getString("data"), Base64.NO_WRAP);
+            inputStream = new ByteArrayInputStream(bytes);
         } else {
             Uri uri = Uri.parse(data.getString("uri"));
             inputStream =
@@ -228,6 +229,9 @@ public class RCTSodiumModule extends ReactContextBaseJavaModule {
             byte[] salt = pair.second;
 
             String hash = data.getString("hash");
+            if (hash == null) {
+                hash = xxhash64(data);
+            }
             InputStream inputStream = getInputStream(data);
             int length = inputStream.available();
 
@@ -385,7 +389,7 @@ public class RCTSodiumModule extends ReactContextBaseJavaModule {
                 return;
             }
 
-            p.resolve(getCipherData(iv, salt, length, null, cipher));
+            p.resolve(getCipherData(iv, salt, dataB.length, null, cipher));
 
         } catch (Exception e) {
             p.reject(e);
