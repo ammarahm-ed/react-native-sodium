@@ -172,6 +172,14 @@ RCT_EXPORT_METHOD(hashFile:(NSDictionary *)data resolve: (RCTPromiseResolveBlock
 {
     dispatch_async(dispatch_get_main_queue(), ^{
         
+        resolve([self xxh64:data]);
+        
+    });
+}
+
+
+- (NSString *) xxh64:(NSDictionary *)data {
+    
     NSInputStream *inputStream;
     NSNumber *length;
     NSFileManager *fmngr = [NSFileManager defaultManager];
@@ -216,9 +224,11 @@ RCT_EXPORT_METHOD(hashFile:(NSDictionary *)data resolve: (RCTPromiseResolveBlock
     unsigned long long val = XXH64_digest(state);
     [inputStream close];
     
-    resolve([NSString stringWithFormat:@"%llx", val]);
-    });
+    return [NSString stringWithFormat:@"%llx", val];
+    
+    
 }
+
 
 - (NSOutputStream *) getOutputStream:(NSDictionary *)data base64:(BOOL)base64 {
     NSOutputStream *outputStream;
@@ -419,7 +429,11 @@ RCT_EXPORT_METHOD(encryptFile:(NSDictionary*)passwordOrKey data:(NSDictionary *)
         NSInputStream *inputStream;
         NSNumber *length;
         NSFileManager *fmngr = [NSFileManager defaultManager];
+        NSString *hash = data[@"hash"];
         
+        if (hash == nil) {
+            hash = [self xxh64:data];
+        }
         
         if ([data[@"type"]  isEqual: @"base64"]) {
             NSData *b64 = [[NSData alloc] initWithBase64EncodedString:[data valueForKey:@"data"] options:0];
@@ -435,7 +449,10 @@ RCT_EXPORT_METHOD(encryptFile:(NSDictionary*)passwordOrKey data:(NSDictionary *)
         
         crypto_secretstream_xchacha20poly1305_init_push(&state, header, key.bytes);
         
-        NSOutputStream *outputStream = [self getOutputStream:data base64:false];
+        NSMutableDictionary *outputDic = [NSMutableDictionary dictionaryWithDictionary:data];
+        [outputDic setValue:hash forKey:@"hash"];
+        NSOutputStream *outputStream = [self getOutputStream:outputDic base64:false];
+        
         [outputStream open];
         [inputStream open];
         
@@ -453,7 +470,7 @@ RCT_EXPORT_METHOD(encryptFile:(NSDictionary*)passwordOrKey data:(NSDictionary *)
         
         [dict setValue:[self bin2b64:[NSData dataWithBytes:header length:crypto_secretstream_xchacha20poly1305_HEADERBYTES]] forKey:@"iv"];
         [dict setValue:[self bin2b64:salt] forKey:@"salt"];
-        dict[@"hash"] = data[@"hash"];
+        dict[@"hash"] = outputDic[@"hash"];
         dict[@"hashType"] = @"xxh64";
         [dict setObject:length forKey:@"length"];
         resolve(dict);
