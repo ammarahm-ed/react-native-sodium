@@ -108,11 +108,11 @@ RCT_EXPORT_MODULE();
 }
 
 RCT_EXPORT_METHOD(addListener : (NSString *)eventName) {
-  // Keep: Required for RN built in Event Emitter Calls.
+    // Keep: Required for RN built in Event Emitter Calls.
 }
 
 RCT_EXPORT_METHOD(removeListeners : (NSInteger)count) {
-  // Keep: Required for RN built in Event Emitter Calls.
+    // Keep: Required for RN built in Event Emitter Calls.
 }
 
 RCT_EXPORT_METHOD(deriveKey:(NSString*)password salty:(NSString *)salty resolve: (RCTPromiseResolveBlock)resolve reject:(RCTPromiseRejectBlock)reject) {
@@ -200,7 +200,7 @@ RCT_EXPORT_METHOD(hashFile:(NSDictionary *)data resolve: (RCTPromiseResolveBlock
         state = XXH64_createState();
     });
     
-    XXH_errorcode ec = XXH64_reset(state, 0x5bd1e995);
+    XXH_errorcode ec = XXH64_reset(state, 0);
     if (ec != XXH_OK) {
         @throw NSGenericException;
     }
@@ -256,7 +256,6 @@ RCT_EXPORT_METHOD(hashFile:(NSDictionary *)data resolve: (RCTPromiseResolveBlock
 
 
 
-
 -(int) transform:(crypto_secretstream_xchacha20poly1305_state)state inputStream:(NSInputStream *)inputStream outputStream:(NSOutputStream *)outputStream inputlength:(NSNumber *)inputLength chunkSize:(long)chunkSize decrypt:(BOOL)decrypt {
     
     unsigned long long length = inputLength.longLongValue;
@@ -268,21 +267,32 @@ RCT_EXPORT_METHOD(hashFile:(NSDictionary *)data resolve: (RCTPromiseResolveBlock
         int end = fmin(start + chunkSize, length);
         long chunk_length = end - start;
         uint8_t buffer[chunk_length];
+        
         [inputStream read:buffer maxLength:chunk_length];
         
         unsigned long output_chunk_length =  decrypt ? chunk_length - crypto_secretstream_xchacha20poly1305_abytes() :  chunk_length + crypto_secretstream_xchacha20poly1305_abytes();
         
-        unsigned char output_chunk[output_chunk_length];
+        NSMutableData * output_chunk = [[NSMutableData alloc] initWithLength:output_chunk_length];
+        int result = 0;
+        if (decrypt) {
+            
+            unsigned char tag;
+            result = crypto_secretstream_xchacha20poly1305_pull(&state, (unsigned char *) output_chunk.bytes, nil, &tag, buffer, chunk_length, nil, 0);
+            
+        }else {
+            BOOL final = i == totalChunks - 1;
+            unsigned char tag = final ? crypto_secretstream_xchacha20poly1305_tag_final() : crypto_secretstream_xchacha20poly1305_tag_message();
+            result = crypto_secretstream_xchacha20poly1305_push(&state,(unsigned char *) output_chunk.bytes, NULL, buffer, chunk_length, NULL, 0, tag);
+        }
         
-        int result = decrypt ? [self decryptChunk:state chunkLength:chunk_length input:buffer output:output_chunk final:i == totalChunks - 1] : [self encryptChunk:state chunkLength:chunk_length input:buffer output:output_chunk final:i == totalChunks - 1];
         
         if (result != 0) {
             [outputStream close];
             [inputStream close];
             return result;
         }
-        
-        [outputStream write:output_chunk maxLength:output_chunk_length];
+        const uint8_t *output_bytes = output_chunk.bytes;
+        [outputStream write:output_bytes maxLength:output_chunk_length];
         
         [self sendProgressEvent:totalChunks progress:i];
         
@@ -362,7 +372,7 @@ RCT_EXPORT_METHOD(encrypt:(NSDictionary*)passwordOrKey data:(NSDictionary *)data
             NSString* base64Cipher = [self bin2b64:encryptedData];
             NSString* base64IV = [self bin2b64:iv];
             NSString* base64Salt = [self bin2b64:salt];
-            
+            [dict setValue:[NSNumber numberWithLong:STREAM_CHUNK_SIZE] forKey:@"chunkSize"];
             [dict setValue:base64IV forKey:@"iv"];
             [dict setValue:base64Salt forKey:@"salt"];
             [dict setValue:base64Cipher forKey:@"cipher"];
@@ -445,9 +455,9 @@ RCT_EXPORT_METHOD(encryptFile:(NSDictionary*)passwordOrKey data:(NSDictionary *)
         }
         
         crypto_secretstream_xchacha20poly1305_state state;
-        unsigned char header[crypto_secretstream_xchacha20poly1305_HEADERBYTES];
+        NSMutableData * header = [[NSMutableData alloc] initWithLength:crypto_secretstream_xchacha20poly1305_HEADERBYTES];
         
-        crypto_secretstream_xchacha20poly1305_init_push(&state, header, key.bytes);
+        crypto_secretstream_xchacha20poly1305_init_push(&state,(unsigned char *) header.bytes, key.bytes);
         
         NSMutableDictionary *outputDic = [NSMutableDictionary dictionaryWithDictionary:data];
         [outputDic setValue:hash forKey:@"hash"];
@@ -468,7 +478,7 @@ RCT_EXPORT_METHOD(encryptFile:(NSDictionary*)passwordOrKey data:(NSDictionary *)
         
         NSMutableDictionary* dict = [NSMutableDictionary dictionary];
         
-        [dict setValue:[self bin2b64:[NSData dataWithBytes:header length:crypto_secretstream_xchacha20poly1305_HEADERBYTES]] forKey:@"iv"];
+        [dict setValue:[header base64UrlEncodedString] forKey:@"iv"];
         [dict setValue:[self bin2b64:salt] forKey:@"salt"];
         dict[@"hash"] = outputDic[@"hash"];
         dict[@"hashType"] = @"xxh64";
@@ -482,7 +492,9 @@ RCT_EXPORT_METHOD(decryptFile:(NSDictionary*)passwordOrKey cipher:(NSDictionary*
     
     dispatch_async(dispatch_get_main_queue(), ^{
         NAChlorideInit();
-        long chunk_size = STREAM_CHUNK_SIZE + crypto_secretstream_xchacha20poly1305_abytes();
+        NSNumber *chunkSizeFromCipher = cipher[@"chunkSize"];
+        long chunk_size = chunkSizeFromCipher.longValue + crypto_secretstream_xchacha20poly1305_abytes();
+        
         NSData* key;
         if ([passwordOrKey objectForKey:@"key"] && [passwordOrKey objectForKey:@"salt"]) {
             key = [self b642bin:[passwordOrKey objectForKey:@"key"]];
@@ -495,15 +507,15 @@ RCT_EXPORT_METHOD(decryptFile:(NSDictionary*)passwordOrKey cipher:(NSDictionary*
         
         NSString *path = [SimpleFilesCache pathForName:cipher[@"hash"]];
         NSInputStream *inputStream = [NSInputStream inputStreamWithFileAtPath:path];
-        NSOutputStream *outputStream = [self getOutputStream:cipher base64:b64];
-      
+        
+        
         NSFileManager *fmngr = [NSFileManager defaultManager];
         NSNumber *length = [NSNumber numberWithLong:[[fmngr attributesOfItemAtPath:path error:nil] fileSize]];
         
         NSData *iv = [self b642bin:[cipher objectForKey:@"iv"]];
         crypto_secretstream_xchacha20poly1305_state state;
         crypto_secretstream_xchacha20poly1305_init_pull(&state,[iv bytes], [key bytes]);
-        
+        NSOutputStream *outputStream = [self getOutputStream:cipher base64:b64];
         [outputStream open];
         [inputStream open];
         
