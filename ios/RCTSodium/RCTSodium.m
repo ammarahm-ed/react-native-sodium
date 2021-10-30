@@ -477,7 +477,7 @@ RCT_EXPORT_METHOD(encryptFile:(NSDictionary*)passwordOrKey data:(NSDictionary *)
         [outputStream close];
         
         NSMutableDictionary* dict = [NSMutableDictionary dictionary];
-        
+        [dict setValue:[NSNumber numberWithLong:STREAM_CHUNK_SIZE] forKey:@"chunkSize"];
         [dict setValue:[header base64UrlEncodedString] forKey:@"iv"];
         [dict setValue:[self bin2b64:salt] forKey:@"salt"];
         dict[@"hash"] = outputDic[@"hash"];
