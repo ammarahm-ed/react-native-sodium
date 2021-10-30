@@ -118,7 +118,7 @@ public class RCTSodiumModule extends ReactContextBaseJavaModule {
             InputStream inputStream = getInputStream(data);
             int seed = 0;
             StreamingXXHash64 hash64 = factory.newStreamingHash64(seed);
-            byte[] buf = new byte[8192];
+            byte[] buf = new byte[512 * 1024];
             for (;;) {
                 int read = inputStream.read(buf);
                 if (read == -1) {
@@ -247,8 +247,9 @@ public class RCTSodiumModule extends ReactContextBaseJavaModule {
                 p.reject(ESODIUM, ERR_FAILURE);
                 return;
             }
-
-            p.resolve(getCipherData(header, salt, length, hash, null));
+            WritableMap map = getCipherData(header, salt, length, hash, null);
+            map.putInt("chunkSize",512 * 1024);
+            p.resolve(map);
 
         } catch (Exception e) {
             if (p != null) {
@@ -262,7 +263,8 @@ public class RCTSodiumModule extends ReactContextBaseJavaModule {
     public void decryptFile(final ReadableMap passwordOrKey, final ReadableMap cipher, final boolean b64, final Promise p) {
 
         try {
-            int CHUNK_SIZE = 512 * 1024 + Sodium.crypto_secretstream_xchacha20poly1305_abytes();
+            int chunkSizeFromCipher = cipher.getInt("chunkSize");
+            int CHUNK_SIZE = chunkSizeFromCipher + Sodium.crypto_secretstream_xchacha20poly1305_abytes();
             Pair<byte[], byte[]> pair = getKey(passwordOrKey, cipher.getString("salt"));
             byte[] key = pair.first;
 
