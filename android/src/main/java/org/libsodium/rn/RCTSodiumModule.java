@@ -30,7 +30,6 @@ import com.sun.jna.NativeLong;
 
 import net.jpountz.xxhash.StreamingXXHash64;
 import net.jpountz.xxhash.XXHashFactory;
-import net.openhft.hashing.LongHashFunction;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
