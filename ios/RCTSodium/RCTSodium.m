@@ -511,7 +511,10 @@ RCT_EXPORT_METHOD(decryptFile:(NSDictionary*)passwordOrKey cipher:(NSDictionary*
         
         NSFileManager *fmngr = [NSFileManager defaultManager];
         NSNumber *length = [NSNumber numberWithLong:[[fmngr attributesOfItemAtPath:path error:nil] fileSize]];
-        
+        if (length.longValue == 0) {
+            reject(ESODIUM, ERR_FAILURE, nil);
+            return;
+        }
         NSData *iv = [self b642bin:[cipher objectForKey:@"iv"]];
         crypto_secretstream_xchacha20poly1305_state state;
         crypto_secretstream_xchacha20poly1305_init_pull(&state,[iv bytes], [key bytes]);
