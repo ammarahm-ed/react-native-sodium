@@ -1,5 +1,5 @@
 {
-  "name": "react-native-sodium",
+  "name": "@ammarahmed/react-native-sodium",
   "repository": {
     "type" : "git",
     "url" : "https://github.com/lyubo/react-native-sodium.git"
@@ -11,6 +11,7 @@
   "nativePackage": true,
   "license": "ISC",
   "homepage": "https://github.com/lyubo/react-native-sodium",
+  "private": false,
   "keywords": [
     "react-native",
     "crypto",

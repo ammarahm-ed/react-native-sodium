@@ -259,7 +259,7 @@ public class RCTSodiumModule extends ReactContextBaseJavaModule {
 
 
     @ReactMethod
-    public void decryptFile(final ReadableMap passwordOrKey, final ReadableMap cipher, final boolean b64, final Promise p) {
+    public void decryptFile(final ReadableMap passwordOrKey, final ReadableMap cipher, final String type, final Promise p) {
 
         try {
             int chunkSizeFromCipher = cipher.getInt("chunkSize");
@@ -271,8 +271,10 @@ public class RCTSodiumModule extends ReactContextBaseJavaModule {
             ParcelFileDescriptor descriptor = null;
             DocumentFile outputFile = null;
             final ByteArrayOutputStream output = new ByteArrayOutputStream();
-            if (b64) {
+            if (type.equals("base64")) {
                 outputStream = new Base64OutputStream(output, Base64.NO_WRAP);
+            } else if (type.equals("text")) {
+                outputStream = output;
             } else {
                 outputFile = getFileFromUri(cipher);
                 descriptor = reactContext.getContentResolver().openFileDescriptor(outputFile.getUri(), "rw");
@@ -298,7 +300,7 @@ public class RCTSodiumModule extends ReactContextBaseJavaModule {
                 return;
             }
 
-            if (b64) {
+            if (type.equals("base64") || type.equals("text")) {
                 p.resolve(output.toString());
             } else {
                 p.resolve(outputFile.getUri().toString());

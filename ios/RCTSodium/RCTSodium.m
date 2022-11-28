@@ -230,10 +230,10 @@ RCT_EXPORT_METHOD(hashFile:(NSDictionary *)data resolve: (RCTPromiseResolveBlock
 }
 
 
-- (NSOutputStream *) getOutputStream:(NSDictionary *)data base64:(BOOL)base64 {
+- (NSOutputStream *) getOutputStream:(NSDictionary *)data type:(NSString *)type {
     NSOutputStream *outputStream;
     if (data[@"iv"] != nil) {
-        if (base64) {
+      if ([type isEqualToString:@"text"] || [type isEqualToString:@"base64"]) {
             outputStream = [[NSOutputStream alloc] initToMemory];
         } else {
             NSString *path = data[@"uri"];
@@ -461,7 +461,7 @@ RCT_EXPORT_METHOD(encryptFile:(NSDictionary*)passwordOrKey data:(NSDictionary *)
         
         NSMutableDictionary *outputDic = [NSMutableDictionary dictionaryWithDictionary:data];
         [outputDic setValue:hash forKey:@"hash"];
-        NSOutputStream *outputStream = [self getOutputStream:outputDic base64:false];
+        NSOutputStream *outputStream = [self getOutputStream:outputDic type:@"file"];
         
         [outputStream open];
         [inputStream open];
@@ -487,7 +487,7 @@ RCT_EXPORT_METHOD(encryptFile:(NSDictionary*)passwordOrKey data:(NSDictionary *)
     });
 }
 
-RCT_EXPORT_METHOD(decryptFile:(NSDictionary*)passwordOrKey cipher:(NSDictionary*)cipher b64:(BOOL )b64 resolve: (RCTPromiseResolveBlock)resolve reject:(RCTPromiseRejectBlock)reject)
+RCT_EXPORT_METHOD(decryptFile:(NSDictionary*)passwordOrKey cipher:(NSDictionary*)cipher type:(NSString*)type resolve: (RCTPromiseResolveBlock)resolve reject:(RCTPromiseRejectBlock)reject)
 {
     
     dispatch_async(dispatch_get_main_queue(), ^{
@@ -518,7 +518,7 @@ RCT_EXPORT_METHOD(decryptFile:(NSDictionary*)passwordOrKey cipher:(NSDictionary*
         NSData *iv = [self b642bin:[cipher objectForKey:@"iv"]];
         crypto_secretstream_xchacha20poly1305_state state;
         crypto_secretstream_xchacha20poly1305_init_pull(&state,[iv bytes], [key bytes]);
-        NSOutputStream *outputStream = [self getOutputStream:cipher base64:b64];
+        NSOutputStream *outputStream = [self getOutputStream:cipher type:type];
         [outputStream open];
         [inputStream open];
         
@@ -529,9 +529,12 @@ RCT_EXPORT_METHOD(decryptFile:(NSDictionary*)passwordOrKey cipher:(NSDictionary*
             return;
         }
         
-        if (b64) {
+        if ([type isEqualToString:@"base64"]) {
             NSData *data = [outputStream propertyForKey:NSStreamDataWrittenToMemoryStreamKey];
             resolve([data base64String]);
+        } else if ([type isEqualToString:@"text"]) {
+            NSData *data = [outputStream propertyForKey:NSStreamDataWrittenToMemoryStreamKey];
+            resolve([[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding]);
         } else {
             resolve(nil);
         }
