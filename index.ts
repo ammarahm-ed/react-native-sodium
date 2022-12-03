@@ -1,5 +1,4 @@
 import { NativeModules } from "react-native";
-
 import {
   CameraOptions,
   ImageLibraryOptions,
@@ -7,8 +6,8 @@ import {
   CIPHER,
   PASSWORD,
   FileCipher,
-} from "react-native-sodium/types";
-export * from "react-native-sodium/types";
+} from "./types";
+export * from "./types";
 
 const DEFAULT_OPTIONS: CameraOptions = {
   mediaType: "photo",
