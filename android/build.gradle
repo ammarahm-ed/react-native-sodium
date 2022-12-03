@@ -26,4 +26,5 @@ dependencies {
     implementation "com.goterl:lazysodium-android:5.0.2@aar"
     implementation "net.java.dev.jna:jna:5.9.0@aar"
     implementation 'org.lz4:lz4-java:1.8.0'
+    implementation "androidx.documentfile:documentfile:1.0.1"
 }
