@@ -271,10 +271,14 @@ public class RCTSodiumModule extends ReactContextBaseJavaModule {
             ParcelFileDescriptor descriptor = null;
             DocumentFile outputFile = null;
             final ByteArrayOutputStream output = new ByteArrayOutputStream();
+            String outputPath = "";
             if (type.equals("base64")) {
                 outputStream = new Base64OutputStream(output, Base64.NO_WRAP);
             } else if (type.equals("text")) {
                 outputStream = output;
+            } else if (type.equals("cache")) {
+                outputPath = cipher.getString("hash") + "_dcache";
+                outputStream = new FileOutputStream(getFileFromCache(outputPath));
             } else {
                 outputFile = getFileFromUri(cipher);
                 descriptor = reactContext.getContentResolver().openFileDescriptor(outputFile.getUri(), "rw");
@@ -302,8 +306,10 @@ public class RCTSodiumModule extends ReactContextBaseJavaModule {
 
             if (type.equals("base64") || type.equals("text")) {
                 p.resolve(output.toString());
-            } else {
+            } else if (type.equals("file")) {
                 p.resolve(outputFile.getUri().toString());
+            } else {
+                p.resolve(outputPath);
             }
 
         } catch (Exception e) {

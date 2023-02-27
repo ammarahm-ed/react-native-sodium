@@ -235,7 +235,16 @@ RCT_EXPORT_METHOD(hashFile:(NSDictionary *)data resolve: (RCTPromiseResolveBlock
     if (data[@"iv"] != nil) {
       if ([type isEqualToString:@"text"] || [type isEqualToString:@"base64"]) {
             outputStream = [[NSOutputStream alloc] initToMemory];
-        } else {
+      } else if ([type isEqualToString:@"cache"]) {
+          
+          NSFileManager *fmngr = [NSFileManager defaultManager];
+          NSMutableString *path = [NSMutableString stringWithString:data[@"hash"]];
+          [path appendString:@"_dcache"];
+          NSString *outputPath = [SimpleFilesCache pathForName:path];
+          [self removeFileIfExists:path];
+          [fmngr createFileAtPath:outputPath contents:nil attributes:nil];
+          outputStream = [NSOutputStream outputStreamToFileAtPath:outputPath append:NO];
+      } else {
             NSString *path = data[@"uri"];
             NSFileManager *fmngr = [NSFileManager defaultManager];
             path = [path stringByAppendingString:data[@"fileName"]];
@@ -535,6 +544,10 @@ RCT_EXPORT_METHOD(decryptFile:(NSDictionary*)passwordOrKey cipher:(NSDictionary*
         } else if ([type isEqualToString:@"text"]) {
             NSData *data = [outputStream propertyForKey:NSStreamDataWrittenToMemoryStreamKey];
             resolve([[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding]);
+        } else if ([type isEqualToString:@"cache"]) {
+            NSMutableString *path = [NSMutableString stringWithString:cipher[@"hash"]];
+            [path appendString:@"_dcache"];
+            resolve(path);
         } else {
             resolve(nil);
         }
