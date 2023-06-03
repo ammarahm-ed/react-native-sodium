@@ -23,6 +23,7 @@ const Sodium: {
       uri: string;
       type: "base64" | "url" | "cache";
       data?: string;
+      appGroupId?: string;
     }
   ): Promise<FileCipher>;
 } = NativeModules.Sodium;

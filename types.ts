@@ -8,10 +8,10 @@ export interface ImageLibraryOptions {
   quality?: PhotoQuality;
   videoQuality?: AndroidVideoOptions | iOSVideoOptions;
   includeBase64?: boolean;
-  password?:string;
-  key?:string;
-  salt?:string;
-  encryptToFile?:boolean
+  password?: string;
+  key?: string;
+  salt?: string;
+  encryptToFile?: boolean;
 }
 
 export interface Asset {
@@ -23,31 +23,32 @@ export interface Asset {
   type?: string; //TODO
   fileName?: string;
   duration?: number;
-  encryptionInfo:FileCipher
+  encryptionInfo: FileCipher;
 }
 
 export type FileCipher = {
-  salt?:string,
-  hash?:string,
-  hashType?:string,
-  iv?:string,
-  length?:number
-  mime?:string,
-  fileName?:string,
-  uri?:string
-}
+  salt?: string;
+  hash?: string;
+  hashType?: string;
+  iv?: string;
+  length?: number;
+  mime?: string;
+  fileName?: string;
+  uri?: string;
+  appGroupId?: string;
+};
 
 export type PASSWORD = {
-  key:string,
-  salt:string
-}
+  key: string;
+  salt: string;
+};
 
 export type CIPHER = {
-  salt:string,
-  iv:string,
-  length:number,
-  cipher?:string
-}
+  salt: string;
+  iv: string;
+  length: number;
+  cipher?: string;
+};
 
 export interface CameraOptions extends ImageLibraryOptions {
   durationLimit?: number;
@@ -74,8 +75,8 @@ export type PhotoQuality =
   | 0.8
   | 0.9
   | 1;
-export type CameraType = 'back' | 'front';
-export type MediaType = 'photo' | 'video' | 'mixed';
-export type AndroidVideoOptions = 'low' | 'high';
-export type iOSVideoOptions = 'low' | 'medium' | 'high';
-export type ErrorCode = 'camera_unavailable' | 'permission' | 'others';
+export type CameraType = "back" | "front";
+export type MediaType = "photo" | "video" | "mixed";
+export type AndroidVideoOptions = "low" | "high";
+export type iOSVideoOptions = "low" | "medium" | "high";
+export type ErrorCode = "camera_unavailable" | "permission" | "others";
