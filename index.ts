@@ -14,14 +14,14 @@ const Sodium: {
   ): Promise<string>;
   hashFile(data: {
     uri: string;
-    type: "base64" | "url";
+    type: "base64" | "url" | "cache";
     data?: string;
-  }): string;
+  }): Promise<string>;
   encryptFile(
     password: { key?: string; salt?: string; password?: string },
     data: {
       uri: string;
-      type: "base64" | "url";
+      type: "base64" | "url" | "cache";
       data?: string;
     }
   ): Promise<FileCipher>;

@@ -34,6 +34,7 @@ import net.jpountz.xxhash.XXHashFactory;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -58,8 +59,8 @@ public class RCTSodiumModule extends ReactContextBaseJavaModule {
 
     public void onSodiumProgress(double total, double progress) {
         WritableMap params = Arguments.createMap();
-        params.putDouble("total",total);
-        params.putDouble("progress",progress);
+        params.putDouble("total", total);
+        params.putDouble("progress", progress);
 
         this.reactContext
                 .getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter.class)
@@ -118,7 +119,7 @@ public class RCTSodiumModule extends ReactContextBaseJavaModule {
             int seed = 0;
             StreamingXXHash64 hash64 = factory.newStreamingHash64(seed);
             byte[] buf = new byte[512 * 1024];
-            for (;;) {
+            for (; ; ) {
                 int read = inputStream.read(buf);
                 if (read == -1) {
                     break;
@@ -202,19 +203,23 @@ public class RCTSodiumModule extends ReactContextBaseJavaModule {
 
     public InputStream getInputStream(ReadableMap data) {
         try {
-        InputStream inputStream;
+            InputStream inputStream;
 
-        if (data.hasKey("type") && data.getString("type").equals("base64")) {
-            byte[] bytes = Base64.decode(data.getString("data"), Base64.NO_WRAP);
-            inputStream = new ByteArrayInputStream(bytes);
-        } else {
-            Uri uri = Uri.parse(data.getString("uri"));
-            inputStream =
-                    reactContext.getContentResolver().openInputStream(uri);
-        };
-        return inputStream;
+            if (data.hasKey("type") && data.getString("type").equals("base64")) {
+                byte[] bytes = Base64.decode(data.getString("data"), Base64.NO_WRAP);
+                inputStream = new ByteArrayInputStream(bytes);
+            } else if (data.hasKey("type") && data.getString("type").equals("cache")) {
+                File file = new File(data.getString("uri"));
+                inputStream = new FileInputStream(file);
+            } else {
+                Uri uri = Uri.parse(data.getString("uri"));
+                inputStream =
+                        reactContext.getContentResolver().openInputStream(uri);
+            }
+            ;
+            return inputStream;
         } catch (Exception e) {
-    return  null;
+            return null;
         }
     }
 
@@ -247,7 +252,7 @@ public class RCTSodiumModule extends ReactContextBaseJavaModule {
                 return;
             }
             WritableMap map = getCipherData(header, salt, length, hash, null);
-            map.putInt("chunkSize",512 * 1024);
+            map.putInt("chunkSize", 512 * 1024);
             p.resolve(map);
 
         } catch (Exception e) {
@@ -336,7 +341,7 @@ public class RCTSodiumModule extends ReactContextBaseJavaModule {
                     outputStream.close();
                     return -1;
                 }
-                onSodiumProgress(totalChunks,i);
+                onSodiumProgress(totalChunks, i);
                 outputStream.flush();
             }
             inputStream.close();
