@@ -254,10 +254,20 @@ RCT_EXPORT_METHOD(hashFile:(NSDictionary *)data resolve: (RCTPromiseResolveBlock
         
     } else {
         NSFileManager *fmngr = [NSFileManager defaultManager];
-        NSString *outputPath = [SimpleFilesCache pathForName:data[@"hash"]];
-        [self removeFileIfExists:data[@"hash"]];
+        NSString *outputPath;
+        if (data[@"appGroupId"] != nil) {
+            NSURL *appGroupUrl = [fmngr containerURLForSecurityApplicationGroupIdentifier:data[@"appGroupId"]];
+            outputPath = [appGroupUrl.path stringByAppendingPathComponent:data[@"hash"]];
+            if ([fmngr fileExistsAtPath:outputPath]) {
+                [fmngr removeItemAtPath:outputPath error:nil];
+            }
+        } else {
+            outputPath = [SimpleFilesCache pathForName:data[@"hash"]];
+            [self removeFileIfExists:data[@"hash"]];
+        }
         [fmngr createFileAtPath:outputPath contents:nil attributes:nil];
         outputStream = [NSOutputStream outputStreamToFileAtPath:outputPath append:NO];
+        
     }
     
     return outputStream;
@@ -470,6 +480,7 @@ RCT_EXPORT_METHOD(encryptFile:(NSDictionary*)passwordOrKey data:(NSDictionary *)
         
         NSMutableDictionary *outputDic = [NSMutableDictionary dictionaryWithDictionary:data];
         [outputDic setValue:hash forKey:@"hash"];
+        [outputDic setValue:data[@"appGroupId"] forKey:@"appGroupId"];
         NSOutputStream *outputStream = [self getOutputStream:outputDic type:@"file"];
         
         [outputStream open];
@@ -514,12 +525,25 @@ RCT_EXPORT_METHOD(decryptFile:(NSDictionary*)passwordOrKey cipher:(NSDictionary*
             key = (NSData*)[keySalt objectForKey:@"key"];
         }
         
-        NSString *path = [SimpleFilesCache pathForName:cipher[@"hash"]];
-        NSInputStream *inputStream = [NSInputStream inputStreamWithFileAtPath:path];
-        
-        
         NSFileManager *fmngr = [NSFileManager defaultManager];
+        
+        NSString *path = [SimpleFilesCache pathForName:cipher[@"hash"]];
+        BOOL exists = [fmngr fileExistsAtPath:path];
+        
+        NSInputStream *inputStream;
+        if (exists) {
+            inputStream = [NSInputStream inputStreamWithFileAtPath:path];
+        }
         NSNumber *length = [NSNumber numberWithLong:[[fmngr attributesOfItemAtPath:path error:nil] fileSize]];
+        
+        if (length.longValue == 0 || !exists) {
+            [inputStream close];
+            NSURL *appGroupDir = [fmngr containerURLForSecurityApplicationGroupIdentifier:cipher[@"appGroupId"]];
+            path = [appGroupDir.path stringByAppendingPathComponent:cipher[@"hash"]];
+            inputStream = [NSInputStream inputStreamWithFileAtPath:path];
+            length = [NSNumber numberWithLong:[[fmngr attributesOfItemAtPath:path error:nil] fileSize]];
+        }
+        
         if (length.longValue == 0) {
             reject(ESODIUM, ERR_FAILURE, nil);
             return;
