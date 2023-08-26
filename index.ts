@@ -1,14 +1,17 @@
 import { NativeModules } from "react-native";
-import { CIPHER, FileCipher, PASSWORD } from "./types";
+import { Cipher, FileCipher, Password } from "./types";
 export * from "./types";
 
 const Sodium: {
   sodium_version_string(): Promise<string>;
-  encrypt(password: string, data: string): Promise<CIPHER>;
-  decrypt(password: string, data: object): Promise<string>;
-  deriveKey(password: string, salt: string): Promise<PASSWORD>;
+  encrypt(password: Password, data: string): Promise<Cipher>;
+  decrypt(password: Password, data: object): Promise<string>;
+
+  decryptMulti(password: Password, data: object[]): Promise<string[]>;
+
+  deriveKey(password: string, salt: string): Promise<Password>;
   decryptFile(
-    password: { key?: string; salt?: string; password?: string },
+    password: Password,
     cipher: FileCipher,
     type: "text" | "file" | "base64" | "cache"
   ): Promise<string>;
@@ -18,7 +21,7 @@ const Sodium: {
     data?: string;
   }): Promise<string>;
   encryptFile(
-    password: { key?: string; salt?: string; password?: string },
+    password: Password,
     data: {
       uri: string;
       type: "base64" | "url" | "cache";
