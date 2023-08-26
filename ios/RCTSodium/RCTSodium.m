@@ -41,7 +41,7 @@ RCT_EXPORT_MODULE();
 
 + (BOOL)requiresMainQueueSetup
 {
-    return YES;
+    return NO;
 }
 
 // Will be called when this module's first listener is added.
@@ -353,7 +353,7 @@ RCT_EXPORT_METHOD(hashFile:(NSDictionary *)data resolve: (RCTPromiseResolveBlock
 RCT_EXPORT_METHOD(encrypt:(NSDictionary*)passwordOrKey data:(NSDictionary *)data resolve: (RCTPromiseResolveBlock)resolve reject:(RCTPromiseRejectBlock)reject)
 {
     
-    dispatch_async(dispatch_get_main_queue(), ^{
+    
         
         NSData* salt;
         NSData* key;
@@ -399,12 +399,12 @@ RCT_EXPORT_METHOD(encrypt:(NSDictionary*)passwordOrKey data:(NSDictionary *)data
             
             resolve(dict);
         }
-    });
+   
 }
 
 RCT_EXPORT_METHOD(decrypt:(NSDictionary*)passwordOrKey cipher:(NSDictionary*)cipher resolve: (RCTPromiseResolveBlock)resolve reject:(RCTPromiseRejectBlock)reject)
 {
-    dispatch_async(dispatch_get_main_queue(), ^{
+    
         
         NSData* key;
         if ([passwordOrKey objectForKey:@"key"] && [passwordOrKey objectForKey:@"salt"]) {
@@ -433,13 +433,59 @@ RCT_EXPORT_METHOD(decrypt:(NSDictionary*)passwordOrKey cipher:(NSDictionary*)cip
             }
         }
         
-    });
+   
 }
+
+RCT_EXPORT_METHOD(decryptMulti:(NSDictionary*)passwordOrKey data:(NSArray *)data resolve: (RCTPromiseResolveBlock)resolve reject:(RCTPromiseRejectBlock)reject)
+{
+    
+        
+        int size = (int) data.count;
+        
+        NSMutableArray * results = [NSMutableArray arrayWithCapacity:size];
+        for (int i=0;i < size; i++) {
+            
+            NSDictionary *cipher = data[i];
+            
+            NSData* key;
+            if ([passwordOrKey objectForKey:@"key"] && [passwordOrKey objectForKey:@"salt"]) {
+                key = [self b642bin:[passwordOrKey objectForKey:@"key"]];
+            } else if ([passwordOrKey objectForKey:@"password"] && [cipher objectForKey:@"salt"]) {
+                NSMutableDictionary* keySalt = [self crypto_pwhash:[passwordOrKey valueForKey:@"password"] salt:[cipher valueForKey:@"salt"]];
+                if (keySalt == NULL)
+                    reject(ESODIUM, ERR_FAILURE, nil);
+                key = (NSData*)[keySalt objectForKey:@"key"];
+            }
+            NSString* data = [cipher objectForKey:@"cipher"];
+            NSData* cipherb = [self b642bin:data];
+            
+            NSData* iv = [self b642bin:[cipher objectForKey:@"iv"]];
+            
+            NAAEAD* AEAD = [[NAAEAD alloc] init];
+            NSError *error = nil;
+            NSData *decryptedData = [AEAD decryptChaCha20Poly1305:cipherb nonce:iv key:key additionalData:NULL error:&error];
+            
+            if (error != nil) {
+                reject(ESODIUM, ERR_FAILURE, nil);
+            } else {
+                if ([[cipher valueForKey:@"output"] isEqual:@"plain"]) {
+                    NSString* s =[[NSString alloc] initWithData:decryptedData encoding:NSUTF8StringEncoding];
+                    results[i] = s;
+                }
+            }
+            
+        }
+        
+        resolve(results);
+        
+   
+}
+
 
 
 RCT_EXPORT_METHOD(encryptFile:(NSDictionary*)passwordOrKey data:(NSDictionary *)data resolve: (RCTPromiseResolveBlock)resolve reject:(RCTPromiseRejectBlock)reject)
 {
-    dispatch_async(dispatch_get_main_queue(), ^{
+  
         NAChlorideInit();
         long chunk_size = STREAM_CHUNK_SIZE;
         NSData* salt;
@@ -504,13 +550,12 @@ RCT_EXPORT_METHOD(encryptFile:(NSDictionary*)passwordOrKey data:(NSDictionary *)
         dict[@"hashType"] = @"xxh64";
         [dict setObject:length forKey:@"length"];
         resolve(dict);
-    });
+    
 }
 
 RCT_EXPORT_METHOD(decryptFile:(NSDictionary*)passwordOrKey cipher:(NSDictionary*)cipher type:(NSString*)type resolve: (RCTPromiseResolveBlock)resolve reject:(RCTPromiseRejectBlock)reject)
 {
     
-    dispatch_async(dispatch_get_main_queue(), ^{
         NAChlorideInit();
         NSNumber *chunkSizeFromCipher = cipher[@"chunkSize"];
         long chunk_size = chunkSizeFromCipher.longValue + crypto_secretstream_xchacha20poly1305_abytes();
@@ -578,7 +623,8 @@ RCT_EXPORT_METHOD(decryptFile:(NSDictionary*)passwordOrKey cipher:(NSDictionary*
         [inputStream close];
         [outputStream close];
         
-    });
+ 
+ 
 }
 
 

@@ -1,6 +1,7 @@
 package org.libsodium.rn;
 
 import android.net.Uri;
+import android.os.AsyncTask;
 import android.os.ParcelFileDescriptor;
 import android.util.Base64;
 import android.util.Base64InputStream;
@@ -16,7 +17,9 @@ import com.facebook.react.bridge.ReactApplicationContext;
 import com.facebook.react.bridge.ReactContext;
 import com.facebook.react.bridge.ReactContextBaseJavaModule;
 import com.facebook.react.bridge.ReactMethod;
+import com.facebook.react.bridge.ReadableArray;
 import com.facebook.react.bridge.ReadableMap;
+import com.facebook.react.bridge.WritableArray;
 import com.facebook.react.bridge.WritableMap;
 import com.facebook.react.module.annotations.ReactModule;
 import com.facebook.react.modules.core.DeviceEventManagerModule;
@@ -38,6 +41,7 @@ import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.util.concurrent.Executors;
 
 @ReactModule(name = "Sodium")
 public class RCTSodiumModule extends ReactContextBaseJavaModule {
@@ -224,102 +228,104 @@ public class RCTSodiumModule extends ReactContextBaseJavaModule {
     }
 
     public void encryptFile(final ReadableMap passwordOrKey, @Nullable final ReadableMap data, @Nullable final byte[] dataA, final Promise p) {
+        AsyncTask.execute(() -> {
+            try {
+                int CHUNK_SIZE = 512 * 1024;
+                Pair<byte[], byte[]> pair = getKey(passwordOrKey, null);
 
-        try {
-            int CHUNK_SIZE = 512 * 1024;
-            Pair<byte[], byte[]> pair = getKey(passwordOrKey, null);
+                byte[] key = pair.first;
+                byte[] salt = pair.second;
 
-            byte[] key = pair.first;
-            byte[] salt = pair.second;
+                String hash = data.getString("hash");
+                if (hash == null) {
+                    hash = xxhash64(data);
+                }
+                InputStream inputStream = getInputStream(data);
+                int length = inputStream.available();
 
-            String hash = data.getString("hash");
-            if (hash == null) {
-                hash = xxhash64(data);
+                byte[] header = new byte[AEAD.XCHACHA20POLY1305_IETF_NPUBBYTES];
+
+                SecretStream.State state = lazySodium.cryptoSecretStreamInitPush(header, Key.fromBytes(key));
+
+                FileOutputStream outputStream = new FileOutputStream(getFileFromCache(hash));
+
+                int result = Transform(state, inputStream, outputStream, CHUNK_SIZE, false);
+
+                if (result != 0) {
+                    p.reject(ESODIUM, ERR_FAILURE);
+                    return;
+                }
+                WritableMap map = getCipherData(header, salt, length, hash, null);
+                map.putInt("chunkSize", 512 * 1024);
+                p.resolve(map);
+
+            } catch (Exception e) {
+                if (p != null) {
+                    p.reject(e);
+                }
             }
-            InputStream inputStream = getInputStream(data);
-            int length = inputStream.available();
-
-            byte[] header = new byte[AEAD.XCHACHA20POLY1305_IETF_NPUBBYTES];
-
-            SecretStream.State state = lazySodium.cryptoSecretStreamInitPush(header, Key.fromBytes(key));
-
-            FileOutputStream outputStream = new FileOutputStream(getFileFromCache(hash));
-
-            int result = Transform(state, inputStream, outputStream, CHUNK_SIZE, false);
-
-            if (result != 0) {
-                p.reject(ESODIUM, ERR_FAILURE);
-                return;
-            }
-            WritableMap map = getCipherData(header, salt, length, hash, null);
-            map.putInt("chunkSize", 512 * 1024);
-            p.resolve(map);
-
-        } catch (Exception e) {
-            if (p != null) {
-                p.reject(e);
-            }
-        }
+        });
     }
 
 
     @ReactMethod
     public void decryptFile(final ReadableMap passwordOrKey, final ReadableMap cipher, final String type, final Promise p) {
+        AsyncTask.execute(() -> {
+            try {
+                int chunkSizeFromCipher = cipher.getInt("chunkSize");
+                int CHUNK_SIZE = chunkSizeFromCipher + Sodium.crypto_secretstream_xchacha20poly1305_abytes();
+                Pair<byte[], byte[]> pair = getKey(passwordOrKey, cipher.getString("salt"));
+                byte[] key = pair.first;
 
-        try {
-            int chunkSizeFromCipher = cipher.getInt("chunkSize");
-            int CHUNK_SIZE = chunkSizeFromCipher + Sodium.crypto_secretstream_xchacha20poly1305_abytes();
-            Pair<byte[], byte[]> pair = getKey(passwordOrKey, cipher.getString("salt"));
-            byte[] key = pair.first;
+                OutputStream outputStream;
+                ParcelFileDescriptor descriptor = null;
+                DocumentFile outputFile = null;
+                final ByteArrayOutputStream output = new ByteArrayOutputStream();
+                String outputPath = "";
+                if (type.equals("base64")) {
+                    outputStream = new Base64OutputStream(output, Base64.NO_WRAP);
+                } else if (type.equals("text")) {
+                    outputStream = output;
+                } else if (type.equals("cache")) {
+                    outputPath = cipher.getString("hash") + "_dcache";
+                    outputStream = new FileOutputStream(getFileFromCache(outputPath));
+                } else {
+                    outputFile = getFileFromUri(cipher);
+                    descriptor = reactContext.getContentResolver().openFileDescriptor(outputFile.getUri(), "rw");
+                    outputStream = new FileOutputStream(descriptor.getFileDescriptor());
+                }
 
-            OutputStream outputStream;
-            ParcelFileDescriptor descriptor = null;
-            DocumentFile outputFile = null;
-            final ByteArrayOutputStream output = new ByteArrayOutputStream();
-            String outputPath = "";
-            if (type.equals("base64")) {
-                outputStream = new Base64OutputStream(output, Base64.NO_WRAP);
-            } else if (type.equals("text")) {
-                outputStream = output;
-            } else if (type.equals("cache")) {
-                outputPath = cipher.getString("hash") + "_dcache";
-                outputStream = new FileOutputStream(getFileFromCache(outputPath));
-            } else {
-                outputFile = getFileFromUri(cipher);
-                descriptor = reactContext.getContentResolver().openFileDescriptor(outputFile.getUri(), "rw");
-                outputStream = new FileOutputStream(descriptor.getFileDescriptor());
+                byte[] iv = Base64.decode(cipher.getString("iv"), variant);
+
+                SecretStream.State state = lazySodium.cryptoSecretStreamInitPull(iv, Key.fromBytes(key));
+
+                File file = new File(reactContext.getCacheDir(), cipher.getString("hash"));
+                InputStream inputStream =
+                        reactContext.getContentResolver().openInputStream(Uri.fromFile(file));
+
+                int result = Transform(state, inputStream, outputStream, CHUNK_SIZE, true);
+
+                if (descriptor != null) {
+                    descriptor.close();
+                }
+
+                if (result != 0) {
+                    p.reject(ESODIUM, ERR_FAILURE);
+                    return;
+                }
+
+                if (type.equals("base64") || type.equals("text")) {
+                    p.resolve(output.toString());
+                } else if (type.equals("file")) {
+                    p.resolve(outputFile.getUri().toString());
+                } else {
+                    p.resolve(outputPath);
+                }
+
+            } catch (Exception e) {
+                p.reject(e.getCause());
             }
-
-            byte[] iv = Base64.decode(cipher.getString("iv"), variant);
-
-            SecretStream.State state = lazySodium.cryptoSecretStreamInitPull(iv, Key.fromBytes(key));
-
-            File file = new File(reactContext.getCacheDir(), cipher.getString("hash"));
-            InputStream inputStream =
-                    reactContext.getContentResolver().openInputStream(Uri.fromFile(file));
-
-            int result = Transform(state, inputStream, outputStream, CHUNK_SIZE, true);
-
-            if (descriptor != null) {
-                descriptor.close();
-            }
-
-            if (result != 0) {
-                p.reject(ESODIUM, ERR_FAILURE);
-                return;
-            }
-
-            if (type.equals("base64") || type.equals("text")) {
-                p.resolve(output.toString());
-            } else if (type.equals("file")) {
-                p.resolve(outputFile.getUri().toString());
-            } else {
-                p.resolve(outputPath);
-            }
-
-        } catch (Exception e) {
-            p.reject(e.getCause());
-        }
+        });
     }
 
     public int Transform(SecretStream.State state, InputStream inputStream, OutputStream outputStream, int chunkSize, boolean decrypt) {
@@ -376,68 +382,110 @@ public class RCTSodiumModule extends ReactContextBaseJavaModule {
 
     @ReactMethod
     public void encrypt(final ReadableMap passwordOrKey, final ReadableMap data, final Promise p) {
-        try {
+        AsyncTask.execute(() -> {
+            try {
 
-            byte[] dataB;
+                byte[] dataB;
 
-            Pair<byte[], byte[]> pair = getKey(passwordOrKey, null);
+                Pair<byte[], byte[]> pair = getKey(passwordOrKey, null);
 
-            byte[] key = pair.first;
-            byte[] salt = pair.second;
+                byte[] key = pair.first;
+                byte[] salt = pair.second;
 
-            if (data.getString("type").equals("b64")) {
-                dataB = Base64.decode(data.getString("data"), variant);
-            } else {
-                dataB = data.getString("data").getBytes();
+                if (data.getString("type").equals("b64")) {
+                    dataB = Base64.decode(data.getString("data"), variant);
+                } else {
+                    dataB = data.getString("data").getBytes();
+                }
+
+                int length = dataB.length + a_bytes_length;
+                byte[] cipher = new byte[length];
+                byte[] iv = randombytes_buf(iv_length);
+                long[] cipher_length = new long[1];
+
+                int result = Sodium.crypto_aead_xchacha20poly1305_ietf_encrypt(cipher, cipher_length, dataB, dataB.length, null, 0, null, iv, key);
+
+                if (result != 0) {
+                    p.reject(ESODIUM, ERR_FAILURE);
+                    return;
+                }
+
+                p.resolve(getCipherData(iv, salt, dataB.length, null, cipher));
+
+            } catch (Exception e) {
+                p.reject(e);
             }
-
-            int length = dataB.length + a_bytes_length;
-            byte[] cipher = new byte[length];
-            byte[] iv = randombytes_buf(iv_length);
-            long[] cipher_length = new long[1];
-
-            int result = Sodium.crypto_aead_xchacha20poly1305_ietf_encrypt(cipher, cipher_length, dataB, dataB.length, null, 0, null, iv, key);
-
-            if (result != 0) {
-                p.reject(ESODIUM, ERR_FAILURE);
-                return;
-            }
-
-            p.resolve(getCipherData(iv, salt, dataB.length, null, cipher));
-
-        } catch (Exception e) {
-            p.reject(e);
-        }
+        });
     }
+
 
     @ReactMethod
     public void decrypt(final ReadableMap passwordOrKey, final ReadableMap cipher, final Promise p) {
-        try {
-            Pair<byte[], byte[]> pair = getKey(passwordOrKey, cipher.getString("salt"));
-            byte[] key = pair.first;
+        AsyncTask.execute(() -> {
+            try {
+                Pair<byte[], byte[]> pair = getKey(passwordOrKey, cipher.getString("salt"));
+                byte[] key = pair.first;
 
-            byte[] cipherb = Base64.decode(cipher.getString("cipher"), variant);
-            byte[] iv = Base64.decode(cipher.getString("iv"), variant);
-            byte[] plainText = new byte[cipher.getInt("length")];
-            long[] plaintext_length = new long[1];
+                byte[] cipherb = Base64.decode(cipher.getString("cipher"), variant);
+                byte[] iv = Base64.decode(cipher.getString("iv"), variant);
+                byte[] plainText = new byte[cipher.getInt("length")];
+                long[] plaintext_length = new long[1];
 
-            int result = Sodium.crypto_aead_xchacha20poly1305_ietf_decrypt(plainText, plaintext_length, null, cipherb, cipherb.length, null, 0, iv, key);
+                int result = Sodium.crypto_aead_xchacha20poly1305_ietf_decrypt(plainText, plaintext_length, null, cipherb, cipherb.length, null, 0, iv, key);
 
-            if (result != 0) {
-                p.reject(ESODIUM, ERR_FAILURE);
-                return;
+                if (result != 0) {
+                    p.reject(ESODIUM, ERR_FAILURE);
+                    return;
+                }
+
+                if (cipher.getString("output").equals("plain")) {
+                    String plain = new String(plainText);
+                    p.resolve(plain);
+                } else {
+                    p.resolve(Base64.encodeToString(plainText, variant));
+                }
+
+            } catch (Exception e) {
+                p.reject(e);
             }
+        });
+    }
 
-            if (cipher.getString("output").equals("plain")) {
-                String plain = new String(plainText);
-                p.resolve(plain);
-            } else {
-                p.resolve(Base64.encodeToString(plainText, variant));
+    @ReactMethod
+    public void decryptMulti(final ReadableMap passwordOrKey, final ReadableArray array, final Promise p) {
+        AsyncTask.execute(() -> {
+            WritableArray results = Arguments.createArray();
+            for (int i=0;i < array.size(); i++) {
+                ReadableMap cipher = array.getMap(i);
+                try {
+                    Pair<byte[], byte[]> pair = getKey(passwordOrKey, cipher.getString("salt"));
+                    byte[] key = pair.first;
+
+                    byte[] cipherb = Base64.decode(cipher.getString("cipher"), variant);
+                    byte[] iv = Base64.decode(cipher.getString("iv"), variant);
+                    byte[] plainText = new byte[cipher.getInt("length")];
+                    long[] plaintext_length = new long[1];
+
+                    int result = Sodium.crypto_aead_xchacha20poly1305_ietf_decrypt(plainText, plaintext_length, null, cipherb, cipherb.length, null, 0, iv, key);
+
+                    if (result != 0) {
+                        p.reject(ESODIUM, ERR_FAILURE);
+                        return;
+                    }
+
+                    if (cipher.getString("output").equals("plain")) {
+                        String plain = new String(plainText);
+                        results.pushString(plain);
+                    } else {
+                        results.pushString(Base64.encodeToString(plainText, variant));
+                    }
+
+                } catch (Exception e) {
+                    p.reject(e);
+                }
             }
-
-        } catch (Exception e) {
-            p.reject(e);
-        }
+            p.resolve(results);
+        });
     }
 
     @ReactMethod
