@@ -381,6 +381,52 @@ public class RCTSodiumModule extends ReactContextBaseJavaModule {
 
 
     @ReactMethod
+    public void encryptMulti(final ReadableMap passwordOrKey, final ReadableArray array, final Promise p) {
+        AsyncTask.execute(() -> {
+
+            WritableArray results = Arguments.createArray();
+            for (int i = 0; i < array.size(); i++) {
+                try {
+                    ReadableMap data = array.getMap(i);
+
+                    byte[] dataB;
+
+                    Pair<byte[], byte[]> pair = getKey(passwordOrKey, null);
+
+                    byte[] key = pair.first;
+                    byte[] salt = pair.second;
+
+                    if (data.getString("type").equals("b64")) {
+                        dataB = Base64.decode(data.getString("data"), variant);
+                    } else {
+                        dataB = data.getString("data").getBytes();
+                    }
+
+                    int length = dataB.length + a_bytes_length;
+                    byte[] cipher = new byte[length];
+                    byte[] iv = randombytes_buf(iv_length);
+                    long[] cipher_length = new long[1];
+
+                    int result = Sodium.crypto_aead_xchacha20poly1305_ietf_encrypt(cipher, cipher_length, dataB, dataB.length, null, 0, null, iv, key);
+
+                    if (result != 0) {
+                        p.reject(ESODIUM, ERR_FAILURE);
+                        return;
+                    }
+
+                    results.pushMap(getCipherData(iv, salt, dataB.length, null, cipher));
+
+                } catch (Exception e) {
+                    p.reject(e);
+                }
+            }
+
+            p.resolve(results);
+        });
+    }
+
+
+    @ReactMethod
     public void encrypt(final ReadableMap passwordOrKey, final ReadableMap data, final Promise p) {
         AsyncTask.execute(() -> {
             try {
@@ -455,7 +501,7 @@ public class RCTSodiumModule extends ReactContextBaseJavaModule {
     public void decryptMulti(final ReadableMap passwordOrKey, final ReadableArray array, final Promise p) {
         AsyncTask.execute(() -> {
             WritableArray results = Arguments.createArray();
-            for (int i=0;i < array.size(); i++) {
+            for (int i = 0; i < array.size(); i++) {
                 ReadableMap cipher = array.getMap(i);
                 try {
                     Pair<byte[], byte[]> pair = getKey(passwordOrKey, cipher.getString("salt"));

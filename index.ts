@@ -8,6 +8,7 @@ const Sodium: {
   decrypt(password: Password, data: object): Promise<string>;
 
   decryptMulti(password: Password, data: object[]): Promise<string[]>;
+  encryptMulti(password: Password, data: object[]): Promise<Cipher[]>;
 
   deriveKey(password: string, salt: string): Promise<Password>;
   decryptFile(

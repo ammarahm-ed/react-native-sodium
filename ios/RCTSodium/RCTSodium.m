@@ -350,11 +350,70 @@ RCT_EXPORT_METHOD(hashFile:(NSDictionary *)data resolve: (RCTPromiseResolveBlock
 }
 
 
+RCT_EXPORT_METHOD(encryptMulti:(NSDictionary*)passwordOrKey array:(NSArray *)array resolve: (RCTPromiseResolveBlock)resolve reject:(RCTPromiseRejectBlock)reject)
+{
+        
+        int size = (int) array.count;
+        NSMutableArray * results = [NSMutableArray arrayWithCapacity:size];
+        for (int i=0;i < size; i++) {
+            NSDictionary *data = array[i];
+            
+            NSData* salt;
+            NSData* key;
+            if ([passwordOrKey objectForKey:@"key"] && [passwordOrKey objectForKey:@"salt"]) {
+                salt = [self b642bin:[passwordOrKey objectForKey:@"salt"]];
+                key = [self b642bin:[passwordOrKey objectForKey:@"key"]];
+            } else if ([passwordOrKey objectForKey:@"password"]) {
+                NSMutableDictionary* keySalt = [self crypto_pwhash:[passwordOrKey valueForKey:@"password"] salt:NULL];
+                if (keySalt == NULL)
+                    reject(ESODIUM, ERR_FAILURE, nil);
+                key = (NSData*)[keySalt objectForKey:@"key"];
+                salt = (NSData*)[keySalt objectForKey:@"salt"];
+            }
+            
+            NSData *ddata;
+            
+            if ([[data valueForKey:@"type"] isEqual:@"b64"]) {
+                
+                ddata = [[NSData alloc] initWithBase64EncodedString:[data valueForKey:@"data"] options:0];
+            } else {
+                ddata = [[data valueForKey:@"data"] dataUsingEncoding:NSUTF8StringEncoding];
+            }
+            
+            size_t size_t_v = crypto_aead_xchacha20poly1305_ietf_npubbytes();
+            NSData* iv = [self randombytes_buf:size_t_v];
+            
+            NAAEAD* AEAD = [[NAAEAD alloc] init];
+            NSError *error = nil;
+            
+            NSData *encryptedData = [AEAD encryptChaCha20Poly1305:ddata nonce:iv key:key additionalData:NULL error:&error];
+            if (error != nil) {
+                reject(ESODIUM, ERR_FAILURE, nil);
+            } else {
+                NSMutableDictionary* dict = [NSMutableDictionary dictionary];
+                NSString* base64Cipher = [self bin2b64:encryptedData];
+                NSString* base64IV = [self bin2b64:iv];
+                NSString* base64Salt = [self bin2b64:salt];
+                [dict setValue:[NSNumber numberWithLong:STREAM_CHUNK_SIZE] forKey:@"chunkSize"];
+                [dict setValue:base64IV forKey:@"iv"];
+                [dict setValue:base64Salt forKey:@"salt"];
+                [dict setValue:base64Cipher forKey:@"cipher"];
+                [dict setObject:[NSNumber numberWithUnsignedLong:[ddata length]] forKey:@"length"];
+                
+                [results addObject:dict];
+             
+            }
+            
+        }
+    
+        resolve(results);
+   
+}
+
+
 RCT_EXPORT_METHOD(encrypt:(NSDictionary*)passwordOrKey data:(NSDictionary *)data resolve: (RCTPromiseResolveBlock)resolve reject:(RCTPromiseRejectBlock)reject)
 {
     
-    
-        
         NSData* salt;
         NSData* key;
         if ([passwordOrKey objectForKey:@"key"] && [passwordOrKey objectForKey:@"salt"]) {
