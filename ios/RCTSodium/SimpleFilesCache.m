@@ -14,14 +14,27 @@
 #pragma mark - Supporting Methods
 
 ///
-/// Gets the base NSCachesDirectory path
+/// Gets the base custom cache directory in library path
 ///
 +(NSString *)cachesDirectoryName
 {
     static NSString *cachePath = nil;
     if(!cachePath) {
-        NSArray *paths = NSSearchPathForDirectoriesInDomains(NSCachesDirectory, NSUserDomainMask, YES);
-        cachePath = [paths objectAtIndex:0];
+        NSArray *paths = NSSearchPathForDirectoriesInDomains(NSLibraryDirectory,
+                                                             NSUserDomainMask, YES);
+        NSString *libraryPath = (NSString *)[paths firstObject];
+        cachePath = [libraryPath stringByAppendingPathComponent:@".cache"];
+        
+        NSFileManager *fmgr = [NSFileManager defaultManager];
+        
+        NSError *error = nil;
+        if (![fmgr fileExistsAtPath:cachePath]) {
+            [fmgr createDirectoryAtPath:cachePath withIntermediateDirectories:YES attributes:nil error:&error];
+        }
+       
+        // Exclude directory from iCloud backups
+        NSURL *url = [NSURL fileURLWithPath:cachePath isDirectory:YES];
+        [url setResourceValue:[NSNumber numberWithBool:YES] forKey:NSURLIsExcludedFromBackupKey error:&error];
     }
     
     return cachePath;

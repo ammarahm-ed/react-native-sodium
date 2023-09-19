@@ -349,10 +349,9 @@ RCT_EXPORT_METHOD(hashFile:(NSDictionary *)data resolve: (RCTPromiseResolveBlock
 }
 
 - (void) removeFileIfExists:(NSString *)name {
-    NSFileManager *fmngr = [NSFileManager defaultManager];
-    NSArray *paths = NSSearchPathForDirectoriesInDomains(NSCachesDirectory, NSUserDomainMask, YES);
-    NSString *cachePath = [paths objectAtIndex:0];
+    NSString *cachePath = [SimpleFilesCache cachesDirectoryName];
     NSString *path = [cachePath stringByAppendingPathComponent:name];
+    NSFileManager *fmngr = [NSFileManager defaultManager];
     if ([fmngr fileExistsAtPath:path]) {
         [fmngr removeItemAtPath:path error:nil];
     }
@@ -689,10 +688,8 @@ RCT_EXPORT_METHOD(decryptFile:(NSDictionary*)passwordOrKey cipher:(NSDictionary*
     }
     [inputStream close];
     [outputStream close];
-    
-    
-    
 }
+
 
 
 @end

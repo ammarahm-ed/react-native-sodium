@@ -169,6 +169,26 @@ public class RCTSodiumModule extends ReactContextBaseJavaModule {
 
     }
 
+    public File getFilesFromFilesDirCache(String hash, Boolean deleteIfExists) {
+        try {
+            String path = reactContext.getFilesDir().getAbsolutePath() + File.separator + ".cache";
+            File dir = new File(path);
+            if (!dir.exists()) {
+                dir.mkdirs();
+            }
+            File file = new File(dir, hash);
+            if (deleteIfExists && file.exists()) {
+                file.delete();
+                file.createNewFile();
+            }
+
+            return file;
+        } catch (Exception e) {
+            return null;
+        }
+
+    }
+
     @ReactMethod
     public void addListener(String eventName) {
         // Keep: Required for RN built in Event Emitter Calls.
@@ -247,7 +267,7 @@ public class RCTSodiumModule extends ReactContextBaseJavaModule {
 
                 SecretStream.State state = lazySodium.cryptoSecretStreamInitPush(header, Key.fromBytes(key));
 
-                FileOutputStream outputStream = new FileOutputStream(getFileFromCache(hash));
+                FileOutputStream outputStream = new FileOutputStream(getFilesFromFilesDirCache(hash, true));
 
                 int result = Transform(state, inputStream, outputStream, CHUNK_SIZE, false);
 
@@ -282,13 +302,14 @@ public class RCTSodiumModule extends ReactContextBaseJavaModule {
                 DocumentFile outputFile = null;
                 final ByteArrayOutputStream output = new ByteArrayOutputStream();
                 String outputPath = "";
+
                 if (type.equals("base64")) {
                     outputStream = new Base64OutputStream(output, Base64.NO_WRAP);
                 } else if (type.equals("text")) {
                     outputStream = output;
                 } else if (type.equals("cache")) {
                     outputPath = cipher.getString("hash") + "_dcache";
-                    outputStream = new FileOutputStream(getFileFromCache(outputPath));
+                    outputStream = new FileOutputStream(getFilesFromFilesDirCache(outputPath, true));
                 } else {
                     outputFile = getFileFromUri(cipher);
                     descriptor = reactContext.getContentResolver().openFileDescriptor(outputFile.getUri(), "rw");
@@ -299,7 +320,7 @@ public class RCTSodiumModule extends ReactContextBaseJavaModule {
 
                 SecretStream.State state = lazySodium.cryptoSecretStreamInitPull(iv, Key.fromBytes(key));
 
-                File file = new File(reactContext.getCacheDir(), cipher.getString("hash"));
+                File file = getFilesFromFilesDirCache(cipher.getString("hash"), false);
                 InputStream inputStream =
                         reactContext.getContentResolver().openInputStream(Uri.fromFile(file));
 

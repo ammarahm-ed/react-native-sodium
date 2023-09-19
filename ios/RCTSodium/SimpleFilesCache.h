@@ -9,24 +9,26 @@
 ///
 @interface SimpleFilesCache : NSObject
 
++ (NSString *)cachesDirectoryName;
+
 // Data save/read
 
-+(void)saveToCacheDirectory:(NSData *)data withName:(NSString *)name;
-+(NSData *)cachedDataWithName:(NSString *)name;
++ (void)saveToCacheDirectory:(NSData *)data withName:(NSString *)name;
++ (NSData *)cachedDataWithName:(NSString *)name;
 
 // Image save/read
 
-+(void)saveImageToCacheDirectory:(UIImage *)image withName:(NSString *)name;
-+(UIImage *)cachedImageWithName:(NSString *)name;
++ (void)saveImageToCacheDirectory:(UIImage *)image withName:(NSString *)name;
++ (UIImage *)cachedImageWithName:(NSString *)name;
 
 //
--(id)initWithNamespace:(NSString *)cacheNamespace;
+- (id)initWithNamespace:(NSString *)cacheNamespace;
 
--(void)saveToCacheDirectory:(NSData *)data withName:(NSString *)name;
--(NSData *)cachedDataWithName:(NSString *)name;
+- (void)saveToCacheDirectory:(NSData *)data withName:(NSString *)name;
+- (NSData *)cachedDataWithName:(NSString *)name;
 
--(void)saveImageToCacheDirectory:(UIImage *)image withName:(NSString *)name;
--(UIImage *)cachedImageWithName:(NSString *)name;
-+(NSString *)pathForName:(NSString *)name;
+- (void)saveImageToCacheDirectory:(UIImage *)image withName:(NSString *)name;
+- (UIImage *)cachedImageWithName:(NSString *)name;
++ (NSString *)pathForName:(NSString *)name;
 
 @end
