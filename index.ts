@@ -4,16 +4,27 @@ export * from "./types";
 
 const Sodium: {
   sodium_version_string(): Promise<string>;
-  encrypt(password: Password, data: string): Promise<Cipher>;
-  decrypt(password: Password, data: object): Promise<string>;
+  encrypt<OutputType>(password: Password, data: {
+    type: 'b64' | "plain",
+    data: string
+  }): Promise<Cipher<OutputType>>;
+  decrypt(password: Password, Cipher: Cipher): Promise<string>;
 
-  decryptMulti(password: Password, data: object[]): Promise<string[]>;
-  encryptMulti(password: Password, data: object[]): Promise<Cipher[]>;
+  decryptMulti(password: Password, data: Cipher[]): Promise<string[]>;
+  encryptMulti<OutputType>(password: Password, data: {
+    type: 'b64' | "plain",
+    data: string
+  }[]): Promise<Cipher<OutputType>[]>;
 
-  deriveKey(password: string, salt: string): Promise<Password>;
+  hashPassword(password: string, email: string): Promise<string>;
+  hashPasswordFallback?(password: string, email: string): Promise<string>;
+
+  deriveKey(password: string, salt?: string): Promise<Password>;
+  deriveKeyFallback?(password: string, salt: string): Promise<Password | null>;
+  
   decryptFile(
     password: Password,
-    cipher: FileCipher,
+    cipher: Partial<FileCipher>,
     type: "text" | "file" | "base64" | "cache"
   ): Promise<string>;
   hashFile(data: {
@@ -29,7 +40,7 @@ const Sodium: {
       data?: string;
       appGroupId?: string;
     }
-  ): Promise<FileCipher>;
+  ): Promise<Omit<FileCipher, "appGroupId" | "fileName" | "uri">>;
 } = NativeModules.Sodium;
 
 export default Sodium;

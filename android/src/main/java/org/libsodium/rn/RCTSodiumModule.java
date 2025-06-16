@@ -277,6 +277,8 @@ public class RCTSodiumModule extends ReactContextBaseJavaModule {
                 }
                 WritableMap map = getCipherData(header, salt, length, hash, null);
                 map.putInt("chunkSize", 512 * 1024);
+                map.putInt("size", length);
+
                 p.resolve(map);
 
             } catch (Exception e) {

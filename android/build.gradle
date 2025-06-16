@@ -1,12 +1,15 @@
 apply plugin: 'com.android.library'
 
+def safeExtGet(prop, fallback) {
+    rootProject.ext.has(prop) ? rootProject.ext.get(prop) : fallback
+}
+
 android {
-    compileSdkVersion rootProject.ext.compileSdkVersion
-    buildToolsVersion "29.0.3"
+    compileSdkVersion safeExtGet('compileSdkVersion', 29)
+    buildToolsVersion safeExtGet('buildToolsVersion', '29.0.2')
     defaultConfig {
-        minSdkVersion 21
-        compileSdkVersion rootProject.ext.compileSdkVersion
-        targetSdkVersion rootProject.ext.targetSdkVersion
+        minSdkVersion safeExtGet('minSdkVersion', 21)
+        targetSdkVersion safeExtGet('targetSdkVersion', 29)
         versionCode 1
         versionName "0.1"
     }
@@ -19,11 +22,10 @@ android {
 }
 
 dependencies {
-    implementation fileTree(dir: 'libs', include: ['*.jar'])
+    implementation fileTree(dir: 'libs', include: ['*.jar', "*.aar"])
     implementation 'com.facebook.react:react-native:+'
     implementation "androidx.core:core:1.3.1"
     implementation "androidx.exifinterface:exifinterface:1.3.1"
-    implementation "com.goterl:lazysodium-android:5.0.2@aar"
     implementation "net.java.dev.jna:jna:5.9.0@aar"
     implementation 'org.lz4:lz4-java:1.8.0'
     implementation "androidx.documentfile:documentfile:1.0.1"

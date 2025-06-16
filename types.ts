@@ -1,13 +1,14 @@
 export type FileCipher = {
-  salt?: string;
-  hash?: string;
-  hashType?: string;
-  iv?: string;
-  length?: number;
-  mime?: string;
-  fileName?: string;
-  uri?: string;
-  appGroupId?: string;
+  salt: string;
+  hash: string;
+  hashType: string;
+  iv: string;
+  size: number;
+  mime: string;
+  fileName: string;
+  uri: string;
+  appGroupId: string;
+  chunkSize: number
 };
 
 export type Password = {
@@ -16,9 +17,11 @@ export type Password = {
   password?: string;
 };
 
-export type Cipher = {
+export type Cipher<OutputType = "base64"> = {
+  format: OutputType;
   salt: string;
   iv: string;
   length: number;
-  cipher?: string;
+  cipher: string;
+  output?: 'plain'
 };
