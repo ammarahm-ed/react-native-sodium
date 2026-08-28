@@ -42,6 +42,7 @@ import java.io.FileOutputStream;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.util.Arrays;
+import java.util.Objects;
 import java.util.concurrent.Executors;
 
 @ReactModule(name = "Sodium")
@@ -518,16 +519,25 @@ public class RCTSodiumModule extends ReactContextBaseJavaModule {
         AsyncTask.execute(() -> {
 
             WritableArray results = Arguments.createArray();
+            // Derived once for the whole batch. Deriving per item ran argon2i
+            // (8 MiB, 3 passes) once per element. Every item still gets its own
+            // random nonce, and iOS has always derived once per batch.
+            byte[] key;
+            byte[] salt;
+            try {
+                Pair<byte[], byte[]> pair = getKey(passwordOrKey, null);
+                key = pair.first;
+                salt = pair.second;
+            } catch (Exception e) {
+                p.reject(ESODIUM, "encryptMulti: " + e.getMessage(), e);
+                return;
+            }
+
             for (int i = 0; i < array.size(); i++) {
                 try {
                     ReadableMap data = array.getMap(i);
 
                     byte[] dataB;
-
-                    Pair<byte[], byte[]> pair = getKey(passwordOrKey, null);
-
-                    byte[] key = pair.first;
-                    byte[] salt = pair.second;
 
                     String plain = requireString(data, "data", "encryptMulti");
                     if ("b64".equals(optString(data, "type"))) {
@@ -648,11 +658,20 @@ public class RCTSodiumModule extends ReactContextBaseJavaModule {
     public void decryptMulti(final ReadableMap passwordOrKey, final ReadableArray array, final Promise p) {
         AsyncTask.execute(() -> {
             WritableArray results = Arguments.createArray();
+            // Cached across items so a batch sharing one salt derives once
+            // rather than running argon2i per element.
+            String cachedSalt = null;
+            Pair<byte[], byte[]> cachedPair = null;
+
             for (int i = 0; i < array.size(); i++) {
                 ReadableMap cipher = array.getMap(i);
                 try {
-                    Pair<byte[], byte[]> pair = getKey(passwordOrKey, cipher.getString("salt"));
-                    byte[] key = pair.first;
+                    String cipherSalt = optString(cipher, "salt");
+                    if (cachedPair == null || !Objects.equals(cachedSalt, cipherSalt)) {
+                        cachedPair = getKey(passwordOrKey, cipherSalt);
+                        cachedSalt = cipherSalt;
+                    }
+                    byte[] key = cachedPair.first;
 
                     byte[] cipherb = decodeBase64(requireString(cipher, "cipher", "decryptMulti"), "cipher");
                     byte[] iv = decodeBase64(requireString(cipher, "iv", "decryptMulti"), "iv");
