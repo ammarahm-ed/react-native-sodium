@@ -739,28 +739,41 @@ RCT_EXPORT_METHOD(decryptFile:(NSDictionary*)passwordOrKey cipher:(NSDictionary*
     }
     
     NSFileManager *fmngr = [NSFileManager defaultManager];
-    
-    NSString *path = [SimpleFilesCache pathForName:cipher[@"hash"]];
-    BOOL exists = [fmngr fileExistsAtPath:path];
-    
-    NSInputStream *inputStream;
-    if (exists) {
-        inputStream = [NSInputStream inputStreamWithFileAtPath:path];
-    }
-    NSNumber *length = [NSNumber numberWithLong:[[fmngr attributesOfItemAtPath:path error:nil] fileSize]];
-    
-    if (length.longValue == 0 || !exists) {
-        [inputStream close];
-        NSURL *appGroupDir = [fmngr containerURLForSecurityApplicationGroupIdentifier:cipher[@"appGroupId"]];
-        path = [appGroupDir.path stringByAppendingPathComponent:cipher[@"hash"]];
-        inputStream = [NSInputStream inputStreamWithFileAtPath:path];
-        length = [NSNumber numberWithLong:[[fmngr attributesOfItemAtPath:path error:nil] fileSize]];
-    }
-    
-    if (length.longValue == 0) {
-        reject(ESODIUM, ERR_FAILURE, nil);
+
+    NSString *hash = cipher[@"hash"];
+    if (hash == nil || [hash length] == 0) {
+        reject(ESODIUM, @"decryptFile: 'hash' is missing", nil);
         return;
     }
+
+    NSString *path = [SimpleFilesCache pathForName:hash];
+    NSNumber *length = [NSNumber numberWithLong:[[fmngr attributesOfItemAtPath:path error:nil] fileSize]];
+
+    if (length.longValue == 0) {
+        // Fall back to the shared app group container. A nil identifier used to
+        // produce a nil path and then crash in inputStreamWithFileAtPath:.
+        NSString *appGroupId = cipher[@"appGroupId"];
+        if (appGroupId == nil || [appGroupId length] == 0) {
+            reject(ESODIUM, [NSString stringWithFormat:@"decryptFile: no encrypted file at %@ and no appGroupId to fall back to", path], nil);
+            return;
+        }
+
+        NSURL *appGroupDir = [fmngr containerURLForSecurityApplicationGroupIdentifier:appGroupId];
+        if (appGroupDir == nil) {
+            reject(ESODIUM, [NSString stringWithFormat:@"decryptFile: app group '%@' is not available to this process", appGroupId], nil);
+            return;
+        }
+
+        path = [appGroupDir.path stringByAppendingPathComponent:hash];
+        length = [NSNumber numberWithLong:[[fmngr attributesOfItemAtPath:path error:nil] fileSize]];
+    }
+
+    if (length.longValue == 0) {
+        reject(ESODIUM, [NSString stringWithFormat:@"decryptFile: encrypted file is missing or empty at %@", path], nil);
+        return;
+    }
+
+    NSInputStream *inputStream = [NSInputStream inputStreamWithFileAtPath:path];
     NSData *iv = [self b642bin:[cipher objectForKey:@"iv"]];
     crypto_secretstream_xchacha20poly1305_state state;
     crypto_secretstream_xchacha20poly1305_init_pull(&state,[iv bytes], [key bytes]);
