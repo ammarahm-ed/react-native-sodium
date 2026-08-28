@@ -401,7 +401,7 @@ RCT_EXPORT_METHOD(hashFile:(NSDictionary *)data resolve: (RCTPromiseResolveBlock
 
 
 
--(int) transform:(crypto_secretstream_xchacha20poly1305_state)state inputStream:(NSInputStream *)inputStream outputStream:(NSOutputStream *)outputStream inputlength:(NSNumber *)inputLength chunkSize:(long)chunkSize decrypt:(BOOL)decrypt {
+-(int) transform:(crypto_secretstream_xchacha20poly1305_state)state inputStream:(NSInputStream *)inputStream outputStream:(NSOutputStream *)outputStream inputlength:(NSNumber *)inputLength chunkSize:(long)chunkSize decrypt:(BOOL)decrypt error:(NSError **)error {
     
     unsigned long long length = inputLength.longLongValue;
     
@@ -434,8 +434,13 @@ RCT_EXPORT_METHOD(hashFile:(NSDictionary *)data resolve: (RCTPromiseResolveBlock
         
         
         if (result != 0) {
+            free(buffer);
+            free(output_buffer);
             [outputStream close];
             [inputStream close];
+            if (error) *error = NAError(NAErrorCodeFailure, ([NSString stringWithFormat:@"%s failed on chunk %d of %d (chunk %ld bytes, stream %llu bytes)",
+                                                              decrypt ? "crypto_secretstream_xchacha20poly1305_pull" : "crypto_secretstream_xchacha20poly1305_push",
+                                                              i + 1, (int) totalChunks, chunk_length, length]));
             return result;
         }
         
@@ -749,10 +754,11 @@ RCT_EXPORT_METHOD(encryptFile:(NSDictionary*)passwordOrKey data:(NSDictionary *)
     [outputStream open];
     [inputStream open];
     
-    int result = [self transform:state inputStream:inputStream outputStream:outputStream inputlength:length chunkSize:chunk_size decrypt:false];
+    NSError *transformError = nil;
+    int result = [self transform:state inputStream:inputStream outputStream:outputStream inputlength:length chunkSize:chunk_size decrypt:false error:&transformError];
     
     if (result != 0) {
-        reject(ESODIUM, ERR_FAILURE, nil);
+        reject(ESODIUM, transformError.localizedDescription ?: ERR_FAILURE, transformError);
         return;
     }
     
@@ -832,10 +838,13 @@ RCT_EXPORT_METHOD(decryptFile:(NSDictionary*)passwordOrKey cipher:(NSDictionary*
     [outputStream open];
     [inputStream open];
     
-    int result = [self transform:state inputStream:inputStream outputStream:outputStream inputlength:length chunkSize:chunk_size decrypt:YES];
+    NSError *transformError = nil;
+    int result = [self transform:state inputStream:inputStream outputStream:outputStream inputlength:length chunkSize:chunk_size decrypt:YES error:&transformError];
     
     if (result != 0) {
-        reject(ESODIUM, ERR_FAILURE, nil);
+        [inputStream close];
+        [outputStream close];
+        reject(ESODIUM, transformError.localizedDescription ?: ERR_FAILURE, transformError);
         return;
     }
     
