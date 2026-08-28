@@ -113,13 +113,17 @@ public class RCTSodiumModule extends ReactContextBaseJavaModule {
 
     @ReactMethod
     public void hashFile(@Nullable final ReadableMap data, final Promise p) {
-        p.resolve(xxhash64(data));
+        try {
+            p.resolve(xxhash64(data));
+        } catch (Exception e) {
+            p.reject(ESODIUM, "hashFile: " + e.getMessage(), e);
+        }
     }
 
-    public String xxhash64(@Nullable final ReadableMap data) {
+    public String xxhash64(@Nullable final ReadableMap data) throws Exception {
         XXHashFactory factory = XXHashFactory.fastestInstance();
+        InputStream inputStream = getInputStream(data);
         try {
-            InputStream inputStream = getInputStream(data);
             int seed = 0;
             StreamingXXHash64 hash64 = factory.newStreamingHash64(seed);
             byte[] buf = new byte[512 * 1024];
@@ -130,11 +134,12 @@ public class RCTSodiumModule extends ReactContextBaseJavaModule {
                 }
                 hash64.update(buf, 0, read);
             }
-            long hash = hash64.getValue();
-            inputStream.close();
-            return Long.toHexString(hash);
-        } catch (Exception e) {
-            return null;
+            return Long.toHexString(hash64.getValue());
+        } finally {
+            try {
+                inputStream.close();
+            } catch (Exception ignored) {
+            }
         }
     }
 
@@ -169,24 +174,22 @@ public class RCTSodiumModule extends ReactContextBaseJavaModule {
 
     }
 
-    public File getFilesFromFilesDirCache(String hash, Boolean deleteIfExists) {
-        try {
-            String path = reactContext.getFilesDir().getAbsolutePath() + File.separator + ".cache";
-            File dir = new File(path);
-            if (!dir.exists()) {
-                dir.mkdirs();
-            }
-            File file = new File(dir, hash);
-            if (deleteIfExists && file.exists()) {
-                file.delete();
-                file.createNewFile();
-            }
+    public File getFilesFromFilesDirCache(String hash, Boolean deleteIfExists) throws Exception {
+        if (hash == null)
+            throw new Exception("getFilesFromFilesDirCache: hash is null");
 
-            return file;
-        } catch (Exception e) {
-            return null;
+        String path = reactContext.getFilesDir().getAbsolutePath() + File.separator + ".cache";
+        File dir = new File(path);
+        if (!dir.exists() && !dir.mkdirs() && !dir.isDirectory())
+            throw new Exception("getFilesFromFilesDirCache: could not create cache directory " + path);
+
+        File file = new File(dir, hash);
+        if (deleteIfExists && file.exists()) {
+            file.delete();
+            file.createNewFile();
         }
 
+        return file;
     }
 
     @ReactMethod
@@ -255,26 +258,32 @@ public class RCTSodiumModule extends ReactContextBaseJavaModule {
                 + " password=" + (password == null ? "missing" : "present"));
     }
 
-    public InputStream getInputStream(ReadableMap data) {
-        try {
-            InputStream inputStream;
+    public InputStream getInputStream(ReadableMap data) throws Exception {
+        String type = optString(data, "type");
 
-            if (data.hasKey("type") && data.getString("type").equals("base64")) {
-                byte[] bytes = Base64.decode(data.getString("data"), Base64.NO_WRAP);
-                inputStream = new ByteArrayInputStream(bytes);
-            } else if (data.hasKey("type") && data.getString("type").equals("cache")) {
-                File file = new File(data.getString("uri"));
-                inputStream = new FileInputStream(file);
-            } else {
-                Uri uri = Uri.parse(data.getString("uri"));
-                inputStream =
-                        reactContext.getContentResolver().openInputStream(uri);
+        if ("base64".equals(type)) {
+            String b64 = optString(data, "data");
+            if (b64 == null)
+                throw new Exception("getInputStream: type is 'base64' but 'data' is missing");
+            try {
+                return new ByteArrayInputStream(Base64.decode(b64, Base64.NO_WRAP));
+            } catch (IllegalArgumentException e) {
+                throw new Exception("getInputStream: 'data' is not valid base64: " + e.getMessage(), e);
             }
-            ;
-            return inputStream;
-        } catch (Exception e) {
-            return null;
         }
+
+        String uri = optString(data, "uri");
+        if (uri == null)
+            throw new Exception("getInputStream: 'uri' is missing (type=" + type + ")");
+
+        if ("cache".equals(type)) {
+            return new FileInputStream(new File(uri));
+        }
+
+        InputStream inputStream = reactContext.getContentResolver().openInputStream(Uri.parse(uri));
+        if (inputStream == null)
+            throw new Exception("getInputStream: content resolver returned no stream for " + uri);
+        return inputStream;
     }
 
     public void encryptFile(final ReadableMap passwordOrKey, @Nullable final ReadableMap data, @Nullable final byte[] dataA, final Promise p) {
