@@ -576,12 +576,13 @@ RCT_EXPORT_METHOD(decrypt:(NSDictionary*)passwordOrKey cipher:(NSDictionary*)cip
     NSData *decryptedData = [AEAD decryptChaCha20Poly1305:cipherb nonce:iv key:key additionalData:NULL error:&error];
     
     if (error != nil) {
-        reject(ESODIUM, ERR_FAILURE, nil);
+        reject(ESODIUM, ERR_FAILURE, error);
+    } else if ([[cipher valueForKey:@"output"] isEqual:@"plain"]) {
+        resolve([[NSString alloc] initWithData:decryptedData encoding:NSUTF8StringEncoding]);
     } else {
-        if ([[cipher valueForKey:@"output"] isEqual:@"plain"]) {
-            NSString* s =[[NSString alloc] initWithData:decryptedData encoding:NSUTF8StringEncoding];
-            resolve(s);
-        }
+        // Previously fell through without resolving or rejecting, leaving the
+        // promise pending forever. Android returns url-safe base64 here.
+        resolve([self bin2b64:decryptedData]);
     }
     
     
