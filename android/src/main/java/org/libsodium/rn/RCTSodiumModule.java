@@ -67,14 +67,25 @@ public class RCTSodiumModule extends ReactContextBaseJavaModule {
 
     ReactContext reactContext;
 
+    /**
+     * Progress is advisory. It is emitted from inside the encrypt/decrypt loop,
+     * so a failure to deliver it must never abort a transfer that is otherwise
+     * succeeding: getJSModule() throws once the react instance is torn down,
+     * which used to surface as a failed encryption of an already written file.
+     */
     public void onSodiumProgress(double total, double progress) {
-        WritableMap params = Arguments.createMap();
-        params.putDouble("total", total);
-        params.putDouble("progress", progress);
+        try {
+            if (!reactContext.hasActiveReactInstance()) return;
 
-        this.reactContext
-                .getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter.class)
-                .emit("onSodiumProgress", params);
+            WritableMap params = Arguments.createMap();
+            params.putDouble("total", total);
+            params.putDouble("progress", progress);
+
+            reactContext
+                    .getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter.class)
+                    .emit("onSodiumProgress", params);
+        } catch (Exception ignored) {
+        }
     }
 
     public RCTSodiumModule(ReactApplicationContext rc) {
