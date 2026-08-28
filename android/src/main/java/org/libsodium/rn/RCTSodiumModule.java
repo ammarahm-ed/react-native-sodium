@@ -376,7 +376,7 @@ public class RCTSodiumModule extends ReactContextBaseJavaModule {
                 }
 
             } catch (Exception e) {
-                p.reject(e.getCause());
+                p.reject(e);
             }
         });
     }
