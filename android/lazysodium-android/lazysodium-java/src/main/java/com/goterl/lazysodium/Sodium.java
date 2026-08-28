@@ -34,6 +34,7 @@ public class Sodium {
 
 
     public native int sodium_init();
+    public native String sodium_version_string();
     public native void sodium_increment(byte[] n, int nLen);
     public native void sodium_add(byte[] a, byte[] b, int len);
     public native int sodium_is_zero(byte[] n, int nLen);

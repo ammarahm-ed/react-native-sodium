@@ -196,6 +196,11 @@ RCT_EXPORT_MODULE();
     return nil;
 }
 
+RCT_EXPORT_METHOD(sodium_version_string:(RCTPromiseResolveBlock)resolve reject:(RCTPromiseRejectBlock)reject) {
+    NAChlorideInit();
+    resolve([NSString stringWithUTF8String:sodium_version_string()]);
+}
+
 RCT_EXPORT_METHOD(addListener : (NSString *)eventName) {
     // Keep: Required for RN built in Event Emitter Calls.
 }

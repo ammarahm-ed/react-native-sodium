@@ -208,6 +208,15 @@ public class RCTSodiumModule extends ReactContextBaseJavaModule {
     }
 
     @ReactMethod
+    public void sodium_version_string(final Promise p) {
+        try {
+            p.resolve(Sodium.sodium_version_string());
+        } catch (Throwable t) {
+            p.reject(ESODIUM, "sodium_version_string: " + t.getMessage(), t);
+        }
+    }
+
+    @ReactMethod
     public void addListener(String eventName) {
         // Keep: Required for RN built in Event Emitter Calls.
     }
