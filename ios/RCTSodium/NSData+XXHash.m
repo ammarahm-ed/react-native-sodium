@@ -13,42 +13,45 @@
 
 - (NSString *)xxh3 {
     
-    static XXH3_state_t * state = NULL;
-    
-    static dispatch_once_t onceToken;
-    dispatch_once(&onceToken, ^{
-        state = XXH3_createState();
-    });
+    XXH3_state_t * state = XXH3_createState();
+    if (state == NULL) {
+        return nil;
+    }
     XXH_errorcode ec = XXH3_64bits_reset(state);
     if (ec != XXH_OK) {
+        XXH3_freeState(state);
         return nil;
     }
     ec = XXH3_64bits_update(state, [self bytes], [self length]);
     if (ec != XXH_OK) {
+        XXH3_freeState(state);
         return nil;
     }
     unsigned long long val = XXH3_64bits_digest(state);
+    XXH3_freeState(state);
     return [NSString stringWithFormat:@"%llx", val];
 }
 
 - (NSString *)xxh64 {
     
-    static XXH64_state_t* state = NULL;
-    static dispatch_once_t onceToken;
-    dispatch_once(&onceToken, ^{
-        state = XXH64_createState();
-    });
-    
+    XXH64_state_t* state = XXH64_createState();
+    if (state == NULL) {
+        return nil;
+    }
+
     XXH_errorcode ec = XXH64_reset(state, 0x5bd1e995);
-    
+
     if (ec != XXH_OK) {
+        XXH64_freeState(state);
         return nil;
     }
     ec = XXH64_update (state, [self bytes], [self length]);
     if (ec != XXH_OK) {
+        XXH64_freeState(state);
         return nil;
     }
     unsigned long long val = XXH64_digest(state);
+    XXH64_freeState(state);
     return [NSString stringWithFormat:@"%llx", val];
 }
 

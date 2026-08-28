@@ -275,14 +275,19 @@ RCT_EXPORT_METHOD(hashFile:(NSDictionary *)data resolve: (RCTPromiseResolveBlock
     }
     
     [inputStream open];
-    static XXH64_state_t* state = NULL;
-    static dispatch_once_t onceToken;
-    dispatch_once(&onceToken, ^{
-        state = XXH64_createState();
-    });
-    
+
+    // One state per call. A shared static state was only safe because the
+    // module's method queue happened to serialise every caller.
+    XXH64_state_t* state = XXH64_createState();
+    if (state == NULL) {
+        [inputStream close];
+        if (error) *error = NAError(NAErrorCodeFailure, @"XXH64_createState failed");
+        return nil;
+    }
+
     XXH_errorcode ec = XXH64_reset(state, 0);
     if (ec != XXH_OK) {
+        XXH64_freeState(state);
         [inputStream close];
         if (error) *error = NAError(NAErrorCodeFailure, @"XXH64_reset failed");
         return nil;
@@ -304,6 +309,7 @@ RCT_EXPORT_METHOD(hashFile:(NSDictionary *)data resolve: (RCTPromiseResolveBlock
         ec = XXH64_update (state, buffer, chunk_length);
         if (ec != XXH_OK) {
             free(buffer);
+            XXH64_freeState(state);
             [inputStream close];
             if (error) *error = NAError(NAErrorCodeFailure, @"XXH64_update failed");
             return nil;
@@ -311,8 +317,9 @@ RCT_EXPORT_METHOD(hashFile:(NSDictionary *)data resolve: (RCTPromiseResolveBlock
     }
     
     free(buffer);
-    
+
     unsigned long long val = XXH64_digest(state);
+    XXH64_freeState(state);
     [inputStream close];
     
     return [NSString stringWithFormat:@"%llx", val];
