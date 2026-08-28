@@ -130,11 +130,13 @@ public class RCTSodiumModule extends ReactContextBaseJavaModule {
 
     @ReactMethod
     public void hashFile(@Nullable final ReadableMap data, final Promise p) {
-        try {
-            p.resolve(xxhash64(data));
-        } catch (Exception e) {
-            p.reject(ESODIUM, "hashFile: " + e.getMessage(), e);
-        }
+        AsyncTask.execute(() -> {
+            try {
+                p.resolve(xxhash64(data));
+            } catch (Exception e) {
+                p.reject(ESODIUM, "hashFile: " + e.getMessage(), e);
+            }
+        });
     }
 
     public String xxhash64(@Nullable final ReadableMap data) throws Exception {
@@ -720,38 +722,42 @@ public class RCTSodiumModule extends ReactContextBaseJavaModule {
 
     @ReactMethod
     public void deriveKey(final String password, final String salt, final Promise p) {
-        try {
-            Pair<byte[], byte[]> pair = crypto_pwhash(password, salt);
-            WritableMap map = Arguments.createMap();
-            map.putString("key", Base64.encodeToString(pair.first, variant));
-            map.putString("salt", Base64.encodeToString(pair.second, variant));
-            p.resolve(map);
-        } catch (Throwable t) {
-            p.reject(ESODIUM, t.getMessage() == null ? ERR_FAILURE : "deriveKey: " + t.getMessage(), t);
-        }
+        AsyncTask.execute(() -> {
+            try {
+                Pair<byte[], byte[]> pair = crypto_pwhash(password, salt);
+                WritableMap map = Arguments.createMap();
+                map.putString("key", Base64.encodeToString(pair.first, variant));
+                map.putString("salt", Base64.encodeToString(pair.second, variant));
+                p.resolve(map);
+            } catch (Throwable t) {
+                p.reject(ESODIUM, t.getMessage() == null ? ERR_FAILURE : "deriveKey: " + t.getMessage(), t);
+            }
+        });
     }
 
     @ReactMethod
     public void hashPassword(final String password, final String email, final Promise p) {
-        try {
-            String app_salt = "oVzKtazBo7d8sb7TBvY9jw";
-            byte[] hash = new byte[16];
-            byte[] input = (app_salt + email).getBytes();
+        AsyncTask.execute(() -> {
+            try {
+                String app_salt = "oVzKtazBo7d8sb7TBvY9jw";
+                byte[] hash = new byte[16];
+                byte[] input = (app_salt + email).getBytes();
 
-            Sodium.crypto_generichash(hash, 16, input, input.length, null, 0);
+                Sodium.crypto_generichash(hash, 16, input, input.length, null, 0);
 
-            byte[] key = new byte[32];
-            byte[] passwordb = password.getBytes();
+                byte[] key = new byte[32];
+                byte[] passwordb = password.getBytes();
 
-            int result = Sodium.crypto_pwhash(key, 32, passwordb, passwordb.length, hash, 3, new NativeLong(1024 * 1024 * 64), PwHash.Alg.PWHASH_ALG_ARGON2ID13.getValue());
+                int result = Sodium.crypto_pwhash(key, 32, passwordb, passwordb.length, hash, 3, new NativeLong(1024 * 1024 * 64), PwHash.Alg.PWHASH_ALG_ARGON2ID13.getValue());
 
-            if (result != 0)
-                throw new Exception("crypto_pwhash: failed");
+                if (result != 0)
+                    throw new Exception("crypto_pwhash: failed");
 
-            p.resolve(Base64.encodeToString(key, variant));
+                p.resolve(Base64.encodeToString(key, variant));
 
-        } catch (Throwable t) {
-            p.reject(ESODIUM, t.getMessage() == null ? ERR_FAILURE : "hashPassword: " + t.getMessage(), t);
-        }
+            } catch (Throwable t) {
+                p.reject(ESODIUM, t.getMessage() == null ? ERR_FAILURE : "hashPassword: " + t.getMessage(), t);
+            }
+        });
     }
 }
