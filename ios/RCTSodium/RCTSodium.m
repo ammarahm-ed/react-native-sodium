@@ -127,8 +127,10 @@ RCT_EXPORT_METHOD(deriveKeyFallback:(NSString*)password salty:(NSString *)salty 
     }
     
     NSMutableDictionary* keySalt = [self crypto_pwhash:password salt:salty fallbackKey:true];
-    if (keySalt == NULL)
-        reject(ESODIUM, ERR_FAILURE, nil);
+    if (keySalt == NULL) {
+        reject(ESODIUM, @"deriveKeyFallback: crypto_pwhash failed", nil);
+        return;
+    }
     NSData* key = (NSData*)[keySalt objectForKey:@"key"];
     NSData* salt = (NSData*)[keySalt objectForKey:@"salt"];
     [keySalt setValue:[self bin2b64:key] forKey:@"key"];
@@ -141,8 +143,10 @@ RCT_EXPORT_METHOD(deriveKey:(NSString*)password salty:(NSString *)salty resolve:
     NAChlorideInit();
     
     NSMutableDictionary* keySalt = [self crypto_pwhash:password salt:salty fallbackKey:false];
-    if (keySalt == NULL)
-        reject(ESODIUM, ERR_FAILURE, nil);
+    if (keySalt == NULL) {
+        reject(ESODIUM, @"deriveKey: crypto_pwhash failed", nil);
+        return;
+    }
     NSData* key = (NSData*)[keySalt objectForKey:@"key"];
     NSData* salt = (NSData*)[keySalt objectForKey:@"salt"];
     [keySalt setValue:[self bin2b64:key] forKey:@"key"];
@@ -171,7 +175,12 @@ RCT_EXPORT_METHOD(hashPasswordFallback:(NSString*)password email:(NSString *)ema
     
     unsigned long long memlimit = 1024 * 1024 * 64;
     
-    if (result != 0) reject(@"Error", nil,nil);
+    if (result != 0) {
+        sodium_free(hash);
+        sodium_free(key);
+        reject(ESODIUM, @"hashPasswordFallback: crypto_generichash failed", nil);
+        return;
+    }
     
     if (crypto_pwhash(key ,
                       32,
@@ -181,7 +190,7 @@ RCT_EXPORT_METHOD(hashPasswordFallback:(NSString*)password email:(NSString *)ema
                       3,
                       memlimit, crypto_pwhash_alg_argon2id13()) != 0)
         
-        reject(@"Error", nil,nil);
+        reject(ESODIUM, @"hashPasswordFallback: crypto_pwhash failed", nil);
     
     else {
         
@@ -209,7 +218,12 @@ RCT_EXPORT_METHOD(hashPassword:(NSString*)password email:(NSString *)email resol
     
     unsigned long long memlimit = 1024 * 1024 * 64;
     
-    if (result != 0) reject(@"Error", nil,nil);
+    if (result != 0) {
+        sodium_free(hash);
+        sodium_free(key);
+        reject(ESODIUM, @"hashPassword: crypto_generichash failed", nil);
+        return;
+    }
     
     if (crypto_pwhash(key ,
                       32,
@@ -219,7 +233,7 @@ RCT_EXPORT_METHOD(hashPassword:(NSString*)password email:(NSString *)email resol
                       3,
                       memlimit, crypto_pwhash_alg_argon2id13()) != 0)
         
-        reject(@"Error", nil,nil);
+        reject(ESODIUM, @"hashPassword: crypto_pwhash failed", nil);
 
     else {
         
@@ -434,8 +448,10 @@ RCT_EXPORT_METHOD(encryptMulti:(NSDictionary*)passwordOrKey array:(NSArray *)arr
         key = [self b642bin:[passwordOrKey objectForKey:@"key"]];
     } else if ([passwordOrKey objectForKey:@"password"]) {
         NSMutableDictionary* keySalt = [self crypto_pwhash:[passwordOrKey valueForKey:@"password"] salt:NULL fallbackKey:false];
-        if (keySalt == NULL)
-            reject(ESODIUM, ERR_FAILURE, nil);
+        if (keySalt == NULL) {
+            reject(ESODIUM, @"crypto_pwhash failed while deriving the key from the password", nil);
+            return;
+        }
         key = (NSData*)[keySalt objectForKey:@"key"];
         salt = (NSData*)[keySalt objectForKey:@"salt"];
     }
@@ -493,8 +509,10 @@ RCT_EXPORT_METHOD(encrypt:(NSDictionary*)passwordOrKey data:(NSDictionary *)data
         key = [self b642bin:[passwordOrKey objectForKey:@"key"]];
     } else if ([passwordOrKey objectForKey:@"password"]) {
         NSMutableDictionary* keySalt = [self crypto_pwhash:[passwordOrKey valueForKey:@"password"] salt:NULL fallbackKey:false];
-        if (keySalt == NULL)
-            reject(ESODIUM, ERR_FAILURE, nil);
+        if (keySalt == NULL) {
+            reject(ESODIUM, @"crypto_pwhash failed while deriving the key from the password", nil);
+            return;
+        }
         key = (NSData*)[keySalt objectForKey:@"key"];
         salt = (NSData*)[keySalt objectForKey:@"salt"];
     }
@@ -542,8 +560,10 @@ RCT_EXPORT_METHOD(decrypt:(NSDictionary*)passwordOrKey cipher:(NSDictionary*)cip
         key = [self b642bin:[passwordOrKey objectForKey:@"key"]];
     } else if ([passwordOrKey objectForKey:@"password"] && [cipher objectForKey:@"salt"]) {
         NSMutableDictionary* keySalt = [self crypto_pwhash:[passwordOrKey valueForKey:@"password"] salt:[cipher valueForKey:@"salt"] fallbackKey:false];
-        if (keySalt == NULL)
-            reject(ESODIUM, ERR_FAILURE, nil);
+        if (keySalt == NULL) {
+            reject(ESODIUM, @"crypto_pwhash failed while deriving the key from the password", nil);
+            return;
+        }
         key = (NSData*)[keySalt objectForKey:@"key"];
     }
     NSString* data = [cipher objectForKey:@"cipher"];
@@ -581,8 +601,10 @@ RCT_EXPORT_METHOD(decryptMulti:(NSDictionary*)passwordOrKey data:(NSArray *)data
             key = [self b642bin:[passwordOrKey objectForKey:@"key"]];
         } else if ([passwordOrKey objectForKey:@"password"] && [cipher objectForKey:@"salt"]) {
             NSMutableDictionary* keySalt = [self crypto_pwhash:[passwordOrKey valueForKey:@"password"] salt:[cipher valueForKey:@"salt"] fallbackKey:false];
-            if (keySalt == NULL)
-                reject(ESODIUM, ERR_FAILURE, nil);
+            if (keySalt == NULL) {
+                reject(ESODIUM, @"crypto_pwhash failed while deriving the key from the password", nil);
+                return;
+            }
             key = (NSData*)[keySalt objectForKey:@"key"];
         }
         NSString* data = [cipher objectForKey:@"cipher"];
@@ -694,8 +716,10 @@ RCT_EXPORT_METHOD(decryptFile:(NSDictionary*)passwordOrKey cipher:(NSDictionary*
         key = [self b642bin:[passwordOrKey objectForKey:@"key"]];
     } else if ([passwordOrKey objectForKey:@"password"] && [cipher objectForKey:@"salt"]) {
         NSMutableDictionary* keySalt = [self crypto_pwhash:[passwordOrKey valueForKey:@"password"] salt:[cipher valueForKey:@"salt"] fallbackKey:false];
-        if (keySalt == NULL)
-            reject(ESODIUM, ERR_FAILURE, nil);
+        if (keySalt == NULL) {
+            reject(ESODIUM, @"crypto_pwhash failed while deriving the key from the password", nil);
+            return;
+        }
         key = (NSData*)[keySalt objectForKey:@"key"];
     }
     
