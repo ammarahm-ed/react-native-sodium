@@ -174,7 +174,8 @@ public class RCTSodiumModule extends ReactContextBaseJavaModule {
 
         if (hash != null) {
             args.putString("hash", hash);
-            args.putString("hashType", "xxh3");
+            // xxhash64, matching what iOS reports and what is actually computed.
+            args.putString("hashType", "xxh64");
         }
         return args;
     }
