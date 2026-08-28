@@ -286,14 +286,18 @@ public class RCTSodiumModule extends ReactContextBaseJavaModule {
      * keep using the strict url-safe variant.
      */
     private byte[] decodeAnyBase64(String value, String owner, String field) throws Exception {
-        int[] alphabets = {Base64.NO_WRAP, Base64.NO_WRAP | Base64.URL_SAFE};
-        for (int flags : alphabets) {
-            try {
-                return Base64.decode(value, flags);
-            } catch (IllegalArgumentException ignored) {
-            }
+        // The two alphabets differ only in the final two symbols, so translating
+        // them lets a single strict decode accept either form. Decoding twice
+        // with different flags does not work: the decoder does not reject the
+        // foreign symbols outright, it drops them, which silently shifts every
+        // byte after the first one.
+        String normalized = value.replace('-', '+').replace('_', '/');
+        try {
+            return Base64.decode(normalized, Base64.NO_WRAP);
+        } catch (IllegalArgumentException e) {
+            throw new Exception(owner + ": '" + field
+                    + "' is not valid base64, standard or url-safe: " + e.getMessage(), e);
         }
-        throw new Exception(owner + ": '" + field + "' is not valid base64 (standard or url-safe)");
     }
 
     private byte[] decodeBase64(String value, String field) throws Exception {
