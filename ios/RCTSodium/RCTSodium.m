@@ -266,14 +266,42 @@ RCT_EXPORT_METHOD(hashFile:(NSDictionary *)data resolve: (RCTPromiseResolveBlock
     NSFileManager *fmngr = [NSFileManager defaultManager];
     
     if ([data[@"type"]  isEqual: @"base64"]) {
-        NSData *b64 = [[NSData alloc] initWithBase64EncodedString:[data valueForKey:@"data"] options:0];
+        NSString *b64String = data[@"data"];
+        if (b64String == nil) {
+            if (error) *error = NAError(NAErrorCodeInvalidData, @"hashFile: type is 'base64' but 'data' is missing");
+            return nil;
+        }
+        NSData *b64 = [[NSData alloc] initWithBase64EncodedString:b64String options:0];
+        if (b64 == nil) {
+            if (error) *error = NAError(NAErrorCodeInvalidData, @"hashFile: 'data' is not valid base64");
+            return nil;
+        }
         length = [NSNumber numberWithLong:b64.length];
         inputStream = [NSInputStream inputStreamWithData:b64];
     } else {
-        length = [NSNumber numberWithLong:[[fmngr attributesOfItemAtPath:data[@"uri"] error:nil] fileSize]];
-        inputStream = [NSInputStream inputStreamWithFileAtPath:data[@"uri"]];
+        NSString *uri = data[@"uri"];
+        if (uri == nil || [uri length] == 0) {
+            if (error) *error = NAError(NAErrorCodeInvalidData, @"hashFile: 'uri' is missing");
+            return nil;
+        }
+        // A missing file used to yield fileSize 0, which fmax(...,1) turned into
+        // one chunk read over an uninitialised buffer: a plausible-looking hash
+        // for a file that was never there.
+        NSError *attributesError = nil;
+        NSDictionary *attributes = [fmngr attributesOfItemAtPath:uri error:&attributesError];
+        if (attributes == nil) {
+            if (error) *error = NAError(NAErrorCodeInvalidData, ([NSString stringWithFormat:@"hashFile: cannot read %@: %@", uri, attributesError.localizedDescription]));
+            return nil;
+        }
+        length = [NSNumber numberWithUnsignedLongLong:[attributes fileSize]];
+        inputStream = [NSInputStream inputStreamWithFileAtPath:uri];
     }
-    
+
+    if (inputStream == nil) {
+        if (error) *error = NAError(NAErrorCodeFailure, @"hashFile: could not open the input stream");
+        return nil;
+    }
+
     [inputStream open];
 
     // One state per call. A shared static state was only safe because the
