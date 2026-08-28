@@ -1,6 +1,7 @@
 import Sodium from '@ammarahmed/react-native-sodium';
 import {Platform} from 'react-native';
 import {describe, expect, it, rejects, within} from '../harness';
+import {fromBase64} from '../util';
 
 const PASSWORD = 'correct horse battery staple';
 const EMAIL = 'someone@example.com';
@@ -91,9 +92,22 @@ describe('key derivation', () => {
     },
   );
 
-  it('deriveKey rejects with a message when the salt is not valid base64', async () => {
-    const error = await rejects(() => Sodium.deriveKey(PASSWORD, '!!!not base64!!!'));
-    expect(error.message.length).toBeGreaterThan(0);
+  it('deriveKey rejects when the salt does not decode to 16 bytes', async () => {
+    // crypto_pwhash always reads crypto_pwhash_SALTBYTES from the salt pointer,
+    // so anything shorter reads past the end of the buffer.
+    let resolved: unknown;
+    try {
+      resolved = await Sodium.deriveKey(PASSWORD, '!!!not base64!!!');
+    } catch (e) {
+      expect((e as Error).message.length).toBeGreaterThan(0);
+      return;
+    }
+    const salt = (resolved as {salt?: string})?.salt ?? '';
+    throw new Error(
+      `resolved instead of rejecting: salt=${JSON.stringify(salt)} decodes to ${
+        fromBase64(salt).length
+      } bytes`,
+    );
   });
 
   it('concurrent derivations do not interfere', async () => {
