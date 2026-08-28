@@ -585,20 +585,6 @@ RCT_EXPORT_METHOD(hashFile:(NSDictionary *)data resolve: (RCTPromiseResolveBlock
     }
 }
 
-- (int) encryptChunk:(crypto_secretstream_xchacha20poly1305_state)state chunkLength:(long)chunkLength input:(uint8_t *)input output:(unsigned char *)output final:(BOOL)final {
-    unsigned char tag = final ? crypto_secretstream_xchacha20poly1305_tag_final() : crypto_secretstream_xchacha20poly1305_tag_message();
-    int result = crypto_secretstream_xchacha20poly1305_push(&state, output, NULL, input, chunkLength, NULL, 0, tag);
-    return result;
-}
-
-- (int) decryptChunk:(crypto_secretstream_xchacha20poly1305_state)state chunkLength:(long)chunkLength input:(uint8_t *)input output:(unsigned char *)output final:(BOOL)final {
-    unsigned char tag;
-    int result = crypto_secretstream_xchacha20poly1305_pull(&state, output, nil, &tag, input, chunkLength, nil, 0);
-    
-    return result;
-    
-}
-
 - (void) removeFileIfExists:(NSString *)name {
     NSString *cachePath = [SimpleFilesCache cachesDirectoryName];
     NSString *path = [cachePath stringByAppendingPathComponent:name];
