@@ -228,13 +228,12 @@ RCT_EXPORT_METHOD(sodium_version_string:(RCTPromiseResolveBlock)resolve reject:(
     resolve([NSString stringWithUTF8String:sodium_version_string()]);
 }
 
-RCT_EXPORT_METHOD(addListener : (NSString *)eventName) {
-    // Keep: Required for RN built in Event Emitter Calls.
-}
-
-RCT_EXPORT_METHOD(removeListeners : (double)count) {
-    // Keep: Required for RN built in Event Emitter Calls.
-}
+// addListener: and removeListeners: are deliberately NOT redefined here.
+// RCTEventEmitter already exports them, and its implementations are what keep
+// the listener count and call startObserving/stopObserving. Overriding them
+// with empty bodies (the boilerplate that plain NativeModules need) meant
+// startObserving never ran, so hasListeners stayed NO and onSodiumProgress was
+// never delivered on iOS.
 
 RCT_EXPORT_METHOD(deriveKeyFallback:(NSString*)password salty:(NSString *)salty resolve: (RCTPromiseResolveBlock)resolve reject:(RCTPromiseRejectBlock)reject) {
     NAChlorideInit();
