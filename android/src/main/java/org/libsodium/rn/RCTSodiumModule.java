@@ -41,6 +41,7 @@ import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.util.Arrays;
 import java.util.concurrent.Executors;
 
 @ReactModule(name = "Sodium")
@@ -304,7 +305,6 @@ public class RCTSodiumModule extends ReactContextBaseJavaModule {
                     hash = xxhash64(data);
                 }
                 InputStream inputStream = getInputStream(data);
-                int length = inputStream.available();
 
                 byte[] header = new byte[AEAD.XCHACHA20POLY1305_IETF_NPUBBYTES];
 
@@ -312,11 +312,11 @@ public class RCTSodiumModule extends ReactContextBaseJavaModule {
 
                 FileOutputStream outputStream = new FileOutputStream(getFilesFromFilesDirCache(hash, true));
 
-                Transform(state, inputStream, outputStream, CHUNK_SIZE, false);
+                long length = Transform(state, inputStream, outputStream, CHUNK_SIZE, false);
 
-                WritableMap map = getCipherData(header, salt, length, hash, null);
+                WritableMap map = getCipherData(header, salt, (int) length, hash, null);
                 map.putInt("chunkSize", 512 * 1024);
-                map.putInt("size", length);
+                map.putInt("size", (int) length);
 
                 p.resolve(map);
 
@@ -402,31 +402,56 @@ public class RCTSodiumModule extends ReactContextBaseJavaModule {
         return total;
     }
 
-    public void Transform(SecretStream.State state, InputStream inputStream, OutputStream outputStream, int chunkSize, boolean decrypt) throws Exception {
+    /**
+     * Returns the number of plaintext bytes processed.
+     *
+     * The loop runs to end of stream rather than to a chunk count derived from
+     * available(): available() is only an estimate of what can be read without
+     * blocking, and for a pipe-backed content provider it can fall far short of
+     * the real length, which silently truncated the ciphertext. It is still
+     * good enough to drive the progress denominator.
+     */
+    public long Transform(SecretStream.State state, InputStream inputStream, OutputStream outputStream, int chunkSize, boolean decrypt) throws Exception {
 
         try {
-            int length = inputStream.available();
-            double totalChunks = Math.max(Math.ceil((float) length / (float) chunkSize), 1);
+            double totalChunks = Math.max(Math.ceil((double) inputStream.available() / (double) chunkSize), 1);
+            long processed = 0;
+            int index = 0;
 
-            for (int i = 0; i < totalChunks; i++) {
-                int start = i * chunkSize;
-                int end = Math.min(start + chunkSize, length);
-                byte[] input_chunk = new byte[end - start];
-                int read = readFully(inputStream, input_chunk);
-                if (read != input_chunk.length)
-                    throw new Exception("short read on chunk " + (i + 1) + " of " + (int) totalChunks
-                            + ": wanted " + input_chunk.length + " bytes, got " + read
-                            + " (stream reported " + length + " bytes)");
-                byte[] output_chunk = decrypt ? decryptChunk(state, input_chunk) : encryptChunk(state, input_chunk, i == totalChunks - 1);
+            byte[] current = new byte[chunkSize];
+            int currentLength = readFully(inputStream, current);
+
+            do {
+                byte[] next = new byte[chunkSize];
+                int nextLength = readFully(inputStream, next);
+                boolean isFinal = nextLength == 0;
+
+                byte[] input_chunk = currentLength == chunkSize ? current : Arrays.copyOf(current, currentLength);
+
+                if (decrypt && input_chunk.length < Sodium.crypto_secretstream_xchacha20poly1305_abytes())
+                    throw new Exception("truncated ciphertext: chunk " + (index + 1) + " is only "
+                            + input_chunk.length + " bytes, need at least "
+                            + Sodium.crypto_secretstream_xchacha20poly1305_abytes());
+
+                byte[] output_chunk = decrypt ? decryptChunk(state, input_chunk) : encryptChunk(state, input_chunk, isFinal);
                 if (output_chunk == null)
                     throw new Exception((decrypt ? "crypto_secretstream_xchacha20poly1305_pull"
                             : "crypto_secretstream_xchacha20poly1305_push")
-                            + " failed on chunk " + (i + 1) + " of " + (int) totalChunks
-                            + " (chunk " + input_chunk.length + " bytes, stream " + length + " bytes)");
+                            + " failed on chunk " + (index + 1)
+                            + " (chunk " + input_chunk.length + " bytes)");
+
                 outputStream.write(output_chunk);
-                onSodiumProgress(totalChunks, i);
                 outputStream.flush();
-            }
+                processed += decrypt ? output_chunk.length : input_chunk.length;
+
+                onSodiumProgress(Math.max(totalChunks, index + 1), index);
+                index++;
+
+                current = next;
+                currentLength = nextLength;
+            } while (currentLength > 0);
+
+            return processed;
         } finally {
             try {
                 inputStream.close();
