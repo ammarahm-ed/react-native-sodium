@@ -20,6 +20,26 @@
 
 // static: these had external linkage and could collide with any other object
 // file in the app that defines a symbol of the same name.
+/**
+ * Values that come from JS are not ordinary Objective-C objects: an explicit
+ * null arrives as NSNull rather than nil, and a caller can put any type under
+ * any key. Reading one directly and sending it a selector raises
+ * NSInvalidArgumentException, which leaves the module as a hard crash instead
+ * of a rejected promise. Every read of a caller supplied dictionary goes
+ * through these two.
+ */
+static NSString *NAStringValue(NSDictionary *dictionary, NSString *key) {
+    id value = dictionary[key];
+    if (value == nil || value == (id)[NSNull null]) return nil;
+    return [value isKindOfClass:[NSString class]] ? (NSString *)value : nil;
+}
+
+static NSNumber *NANumberValue(NSDictionary *dictionary, NSString *key) {
+    id value = dictionary[key];
+    if (value == nil || value == (id)[NSNull null]) return nil;
+    return [value isKindOfClass:[NSNumber class]] ? (NSNumber *)value : nil;
+}
+
 static NSString * const ESODIUM = @"ESODIUM";
 static NSString * const ERR_FAILURE = @"FAILURE";
 static const long STREAM_CHUNK_SIZE = 512 * 1024;
@@ -116,6 +136,13 @@ RCT_EXPORT_MODULE();
     else {
         dsalt = [self randombytes_buf:dsalt_len];
     }
+
+    // crypto_pwhash always reads crypto_pwhash_SALTBYTES from this pointer, so
+    // a salt that decodes to anything shorter reads past the end of the buffer
+    // and a nil one reads from NULL.
+    if (dsalt == nil || [dsalt length] != dsalt_len) {
+        return NULL;
+    }
     
     unsigned long long key_len = 32;
     unsigned char *key = (unsigned char *) sodium_malloc(key_len);
@@ -157,9 +184,9 @@ RCT_EXPORT_MODULE();
  * and NO for decryption, where it means the cipher is unusable.
  */
 - (NSData *) keyFor:(NSDictionary *)passwordOrKey cipherSalt:(NSString *)cipherSalt allowNewSalt:(BOOL)allowNewSalt salt:(NSData **)outSalt error:(NSError **)error {
-    NSString *keyB64 = passwordOrKey[@"key"];
-    NSString *saltB64 = passwordOrKey[@"salt"];
-    NSString *password = passwordOrKey[@"password"];
+    NSString *keyB64 = NAStringValue(passwordOrKey, @"key");
+    NSString *saltB64 = NAStringValue(passwordOrKey, @"salt");
+    NSString *password = NAStringValue(passwordOrKey, @"password");
 
     if (keyB64 != nil && saltB64 != nil) {
         NSData *key = [self b642bin:keyB64];
@@ -357,8 +384,8 @@ RCT_EXPORT_METHOD(hashFile:(NSDictionary *)data resolve: (RCTPromiseResolveBlock
     NSNumber *length;
     NSFileManager *fmngr = [NSFileManager defaultManager];
     
-    if ([data[@"type"]  isEqual: @"base64"]) {
-        NSString *b64String = data[@"data"];
+    if ([NAStringValue(data, @"type") isEqualToString:@"base64"]) {
+        NSString *b64String = NAStringValue(data, @"data");
         if (b64String == nil) {
             if (error) *error = NAError(NAErrorCodeInvalidData, @"hashFile: type is 'base64' but 'data' is missing");
             return nil;
@@ -371,7 +398,7 @@ RCT_EXPORT_METHOD(hashFile:(NSDictionary *)data resolve: (RCTPromiseResolveBlock
         length = [NSNumber numberWithLong:b64.length];
         inputStream = [NSInputStream inputStreamWithData:b64];
     } else {
-        NSString *uri = data[@"uri"];
+        NSString *uri = NAStringValue(data, @"uri");
         if (uri == nil || [uri length] == 0) {
             if (error) *error = NAError(NAErrorCodeInvalidData, @"hashFile: 'uri' is missing");
             return nil;
@@ -459,14 +486,15 @@ RCT_EXPORT_METHOD(hashFile:(NSDictionary *)data resolve: (RCTPromiseResolveBlock
 - (NSOutputStream *) getOutputStream:(NSDictionary *)data type:(NSString *)type path:(NSString **)outPath {
     NSOutputStream *outputStream;
     if (outPath) *outPath = nil;
-    if (data[@"iv"] != nil) {
+    if (NAStringValue(data, @"iv") != nil) {
         if ([type isEqualToString:@"text"] || [type isEqualToString:@"base64"]) {
             outputStream = [[NSOutputStream alloc] initToMemory];
         } else if ([type isEqualToString:@"cache"]) {
             
             NSFileManager *fmngr = [NSFileManager defaultManager];
-            if (data[@"hash"] == nil) return nil;
-            NSMutableString *path = [NSMutableString stringWithString:data[@"hash"]];
+            NSString *cacheHash = NAStringValue(data, @"hash");
+            if (cacheHash == nil) return nil;
+            NSMutableString *path = [NSMutableString stringWithString:cacheHash];
             [path appendString:@"_dcache"];
             NSString *outputPath = [SimpleFilesCache pathForName:path];
             [self removeFileIfExists:path];
@@ -474,8 +502,8 @@ RCT_EXPORT_METHOD(hashFile:(NSDictionary *)data resolve: (RCTPromiseResolveBlock
             outputStream = [NSOutputStream outputStreamToFileAtPath:outputPath append:NO];
             if (outPath) *outPath = outputPath;
         } else {
-            NSString *directory = data[@"uri"];
-            NSString *fileName = data[@"fileName"];
+            NSString *directory = NAStringValue(data, @"uri");
+            NSString *fileName = NAStringValue(data, @"fileName");
             if (directory == nil || fileName == nil) return nil;
             NSFileManager *fmngr = [NSFileManager defaultManager];
             // stringByAppendingString: joined these with no separator, so the
@@ -489,15 +517,19 @@ RCT_EXPORT_METHOD(hashFile:(NSDictionary *)data resolve: (RCTPromiseResolveBlock
     } else {
         NSFileManager *fmngr = [NSFileManager defaultManager];
         NSString *outputPath;
-        if (data[@"appGroupId"] != nil) {
-            NSURL *appGroupUrl = [fmngr containerURLForSecurityApplicationGroupIdentifier:data[@"appGroupId"]];
-            outputPath = [appGroupUrl.path stringByAppendingPathComponent:data[@"hash"]];
+        NSString *outputHash = NAStringValue(data, @"hash");
+        if (outputHash == nil) return nil;
+        NSString *appGroupId = NAStringValue(data, @"appGroupId");
+        if (appGroupId != nil) {
+            NSURL *appGroupUrl = [fmngr containerURLForSecurityApplicationGroupIdentifier:appGroupId];
+            if (appGroupUrl == nil) return nil;
+            outputPath = [appGroupUrl.path stringByAppendingPathComponent:outputHash];
             if ([fmngr fileExistsAtPath:outputPath]) {
                 [fmngr removeItemAtPath:outputPath error:nil];
             }
         } else {
-            outputPath = [SimpleFilesCache pathForName:data[@"hash"]];
-            [self removeFileIfExists:data[@"hash"]];
+            outputPath = [SimpleFilesCache pathForName:outputHash];
+            [self removeFileIfExists:outputHash];
         }
         [fmngr createFileAtPath:outputPath contents:nil attributes:nil];
         outputStream = [NSOutputStream outputStreamToFileAtPath:outputPath append:NO];
@@ -636,11 +668,19 @@ RCT_EXPORT_METHOD(encryptMulti:(NSDictionary*)passwordOrKey array:(NSArray *)arr
         
         NSData *ddata;
         
-        if ([[data valueForKey:@"type"] isEqual:@"b64"]) {
-            
-            ddata = [self b642binAny:[data valueForKey:@"data"]];
+        NSString *payload = NAStringValue(data, @"data");
+        if (payload == nil) {
+            reject(ESODIUM, [NSString stringWithFormat:@"encryptMulti: item %d of %d has no 'data'", i, size], nil);
+            return;
+        }
+        if ([NAStringValue(data, @"type") isEqualToString:@"b64"]) {
+            ddata = [self b642binAny:payload];
+            if (ddata == nil) {
+                reject(ESODIUM, [NSString stringWithFormat:@"encryptMulti: item %d of %d has 'data' that is not valid base64", i, size], nil);
+                return;
+            }
         } else {
-            ddata = [[data valueForKey:@"data"] dataUsingEncoding:NSUTF8StringEncoding];
+            ddata = [payload dataUsingEncoding:NSUTF8StringEncoding];
         }
         
         size_t size_t_v = crypto_aead_xchacha20poly1305_ietf_npubbytes();
@@ -688,11 +728,19 @@ RCT_EXPORT_METHOD(encrypt:(NSDictionary*)passwordOrKey data:(NSDictionary *)data
     
     NSData *ddata;
     
-    if ([[data valueForKey:@"type"] isEqual:@"b64"]) {
-        
-        ddata = [self b642binAny:[data valueForKey:@"data"]];
+    NSString *payload = NAStringValue(data, @"data");
+    if (payload == nil) {
+        reject(ESODIUM, @"encrypt: 'data' is missing", nil);
+        return;
+    }
+    if ([NAStringValue(data, @"type") isEqualToString:@"b64"]) {
+        ddata = [self b642binAny:payload];
+        if (ddata == nil) {
+            reject(ESODIUM, @"encrypt: 'data' is not valid base64", nil);
+            return;
+        }
     } else {
-        ddata = [[data valueForKey:@"data"] dataUsingEncoding:NSUTF8StringEncoding];
+        ddata = [payload dataUsingEncoding:NSUTF8StringEncoding];
     }
     
     size_t size_t_v = crypto_aead_xchacha20poly1305_ietf_npubbytes();
@@ -725,15 +773,25 @@ RCT_EXPORT_METHOD(decrypt:(NSDictionary*)passwordOrKey cipher:(NSDictionary*)cip
     
     
     NSError* keyError = nil;
-    NSData* key = [self keyFor:passwordOrKey cipherSalt:cipher[@"salt"] allowNewSalt:NO salt:nil error:&keyError];
+    NSData* key = [self keyFor:passwordOrKey cipherSalt:NAStringValue(cipher, @"salt") allowNewSalt:NO salt:nil error:&keyError];
     if (key == nil) {
         reject(ESODIUM, keyError.localizedDescription, keyError);
         return;
     }
-    NSString* data = [cipher objectForKey:@"cipher"];
-    NSData* cipherb = [self b642bin:data];
-    
-    NSData* iv = [self b642bin:[cipher objectForKey:@"iv"]];
+
+    NSString* cipherB64 = NAStringValue(cipher, @"cipher");
+    if (cipherB64 == nil) {
+        reject(ESODIUM, @"decrypt: 'cipher' is missing", nil);
+        return;
+    }
+    NSString* ivB64 = NAStringValue(cipher, @"iv");
+    if (ivB64 == nil) {
+        reject(ESODIUM, @"decrypt: 'iv' is missing", nil);
+        return;
+    }
+
+    NSData* cipherb = [self b642bin:cipherB64];
+    NSData* iv = [self b642bin:ivB64];
     
     NAAEAD* AEAD = [[NAAEAD alloc] init];
     NSError *error = nil;
@@ -741,7 +799,7 @@ RCT_EXPORT_METHOD(decrypt:(NSDictionary*)passwordOrKey cipher:(NSDictionary*)cip
     
     if (error != nil) {
         reject(ESODIUM, ERR_FAILURE, error);
-    } else if ([[cipher valueForKey:@"output"] isEqual:@"plain"]) {
+    } else if ([NAStringValue(cipher, @"output") isEqualToString:@"plain"]) {
         resolve([[NSString alloc] initWithData:decryptedData encoding:NSUTF8StringEncoding]);
     } else {
         // Previously fell through without resolving or rejecting, leaving the
@@ -766,7 +824,7 @@ RCT_EXPORT_METHOD(decryptMulti:(NSDictionary*)passwordOrKey data:(NSArray *)data
         
         // Cached across items: a batch sharing one salt used to run argon2i
         // (8 MiB, 3 passes) once per element.
-        NSString* cipherSalt = cipher[@"salt"];
+        NSString* cipherSalt = NAStringValue(cipher, @"salt");
         if (cachedKey == nil || !(cachedSalt == cipherSalt || [cachedSalt isEqualToString:cipherSalt])) {
             NSError* keyError = nil;
             cachedKey = [self keyFor:passwordOrKey cipherSalt:cipherSalt allowNewSalt:NO salt:nil error:&keyError];
@@ -777,10 +835,19 @@ RCT_EXPORT_METHOD(decryptMulti:(NSDictionary*)passwordOrKey data:(NSArray *)data
             cachedSalt = cipherSalt;
         }
         NSData* key = cachedKey;
-        NSString* data = [cipher objectForKey:@"cipher"];
-        NSData* cipherb = [self b642bin:data];
-        
-        NSData* iv = [self b642bin:[cipher objectForKey:@"iv"]];
+        NSString* cipherB64 = NAStringValue(cipher, @"cipher");
+        if (cipherB64 == nil) {
+            reject(ESODIUM, [NSString stringWithFormat:@"decryptMulti: item %d of %d has no 'cipher'", i, size], nil);
+            return;
+        }
+        NSString* ivB64 = NAStringValue(cipher, @"iv");
+        if (ivB64 == nil) {
+            reject(ESODIUM, [NSString stringWithFormat:@"decryptMulti: item %d of %d has no 'iv'", i, size], nil);
+            return;
+        }
+
+        NSData* cipherb = [self b642bin:cipherB64];
+        NSData* iv = [self b642bin:ivB64];
         
         NAAEAD* AEAD = [[NAAEAD alloc] init];
         NSError *error = nil;
@@ -794,7 +861,7 @@ RCT_EXPORT_METHOD(decryptMulti:(NSDictionary*)passwordOrKey data:(NSArray *)data
             return;
         }
 
-        if ([[cipher valueForKey:@"output"] isEqual:@"plain"]) {
+        if ([NAStringValue(cipher, @"output") isEqualToString:@"plain"]) {
             NSString* s = [[NSString alloc] initWithData:decryptedData encoding:NSUTF8StringEncoding];
             if (s == nil) {
                 reject(ESODIUM, [NSString stringWithFormat:@"decryptMulti: item %d of %d decrypted to invalid UTF-8", i, size], nil);
@@ -829,7 +896,7 @@ RCT_EXPORT_METHOD(encryptFile:(NSDictionary*)passwordOrKey data:(NSDictionary *)
     NSInputStream *inputStream;
     NSNumber *length;
     NSFileManager *fmngr = [NSFileManager defaultManager];
-    NSString *hash = data[@"hash"];
+    NSString *hash = NAStringValue(data, @"hash");
     
     if (hash == nil) {
         NSError *hashError = nil;
@@ -840,8 +907,8 @@ RCT_EXPORT_METHOD(encryptFile:(NSDictionary*)passwordOrKey data:(NSDictionary *)
         }
     }
     
-    if ([data[@"type"]  isEqual: @"base64"]) {
-        NSString *b64String = data[@"data"];
+    if ([NAStringValue(data, @"type") isEqualToString:@"base64"]) {
+        NSString *b64String = NAStringValue(data, @"data");
         NSData *b64 = [self b642binAny:b64String];
         if (b64 == nil) {
             reject(ESODIUM, @"encryptFile: type is 'base64' but 'data' is missing or not valid base64", nil);
@@ -850,7 +917,7 @@ RCT_EXPORT_METHOD(encryptFile:(NSDictionary*)passwordOrKey data:(NSDictionary *)
         length = [NSNumber numberWithLong:b64.length];
         inputStream = [NSInputStream inputStreamWithData:b64];
     } else {
-        NSString *uri = data[@"uri"];
+        NSString *uri = NAStringValue(data, @"uri");
         if (uri == nil || [uri length] == 0) {
             reject(ESODIUM, @"encryptFile: 'uri' is missing", nil);
             return;
@@ -879,7 +946,7 @@ RCT_EXPORT_METHOD(encryptFile:(NSDictionary*)passwordOrKey data:(NSDictionary *)
     
     NSMutableDictionary *outputDic = [NSMutableDictionary dictionaryWithDictionary:data];
     [outputDic setValue:hash forKey:@"hash"];
-    [outputDic setValue:data[@"appGroupId"] forKey:@"appGroupId"];
+    [outputDic setValue:NAStringValue(data, @"appGroupId") forKey:@"appGroupId"];
     NSOutputStream *outputStream = [self getOutputStream:outputDic type:@"file" path:nil];
     if (outputStream == nil) {
         reject(ESODIUM, [NSString stringWithFormat:@"encryptFile: could not create the output file for hash %@", hash], nil);
@@ -935,12 +1002,12 @@ RCT_EXPORT_METHOD(decryptFile:(NSDictionary*)passwordOrKey cipher:(NSDictionary*
     // Ciphers written before chunkSize was recorded always used STREAM_CHUNK_SIZE.
     // A nil value used to give longValue 0, leaving chunk_size at just the tag
     // length and turning the loop into millions of 17 byte reads.
-    NSNumber *chunkSizeFromCipher = cipher[@"chunkSize"];
+    NSNumber *chunkSizeFromCipher = NANumberValue(cipher, @"chunkSize");
     long plain_chunk_size = chunkSizeFromCipher.longValue > 0 ? chunkSizeFromCipher.longValue : STREAM_CHUNK_SIZE;
     long chunk_size = plain_chunk_size + crypto_secretstream_xchacha20poly1305_abytes();
     
     NSError* keyError = nil;
-    NSData* key = [self keyFor:passwordOrKey cipherSalt:cipher[@"salt"] allowNewSalt:NO salt:nil error:&keyError];
+    NSData* key = [self keyFor:passwordOrKey cipherSalt:NAStringValue(cipher, @"salt") allowNewSalt:NO salt:nil error:&keyError];
     if (key == nil) {
         reject(ESODIUM, keyError.localizedDescription, keyError);
         return;
@@ -948,7 +1015,7 @@ RCT_EXPORT_METHOD(decryptFile:(NSDictionary*)passwordOrKey cipher:(NSDictionary*
     
     NSFileManager *fmngr = [NSFileManager defaultManager];
 
-    NSString *hash = cipher[@"hash"];
+    NSString *hash = NAStringValue(cipher, @"hash");
     if (hash == nil || [hash length] == 0) {
         reject(ESODIUM, @"decryptFile: 'hash' is missing", nil);
         return;
@@ -960,7 +1027,7 @@ RCT_EXPORT_METHOD(decryptFile:(NSDictionary*)passwordOrKey cipher:(NSDictionary*
     if (length.longValue == 0) {
         // Fall back to the shared app group container. A nil identifier used to
         // produce a nil path and then crash in inputStreamWithFileAtPath:.
-        NSString *appGroupId = cipher[@"appGroupId"];
+        NSString *appGroupId = NAStringValue(cipher, @"appGroupId");
         if (appGroupId == nil || [appGroupId length] == 0) {
             reject(ESODIUM, [NSString stringWithFormat:@"decryptFile: no encrypted file at %@ and no appGroupId to fall back to", path], nil);
             return;
@@ -982,7 +1049,17 @@ RCT_EXPORT_METHOD(decryptFile:(NSDictionary*)passwordOrKey cipher:(NSDictionary*
     }
 
     NSInputStream *inputStream = [NSInputStream inputStreamWithFileAtPath:path];
-    NSData *iv = [self b642bin:[cipher objectForKey:@"iv"]];
+    NSString *ivB64 = NAStringValue(cipher, @"iv");
+    if (ivB64 == nil) {
+        reject(ESODIUM, @"decryptFile: 'iv' is missing", nil);
+        return;
+    }
+    NSData *iv = [self b642bin:ivB64];
+    if ([iv length] != crypto_secretstream_xchacha20poly1305_HEADERBYTES) {
+        reject(ESODIUM, [NSString stringWithFormat:@"decryptFile: 'iv' must decode to %d bytes but decoded to %lu",
+                         (int) crypto_secretstream_xchacha20poly1305_HEADERBYTES, (unsigned long) [iv length]], nil);
+        return;
+    }
     crypto_secretstream_xchacha20poly1305_state state;
     crypto_secretstream_xchacha20poly1305_init_pull(&state,[iv bytes], [key bytes]);
     NSString *writtenPath = nil;
@@ -1019,7 +1096,7 @@ RCT_EXPORT_METHOD(decryptFile:(NSDictionary*)passwordOrKey cipher:(NSDictionary*
         NSData *data = [outputStream propertyForKey:NSStreamDataWrittenToMemoryStreamKey];
         resolve([[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding]);
     } else if ([type isEqualToString:@"cache"]) {
-        NSMutableString *path = [NSMutableString stringWithString:cipher[@"hash"]];
+        NSMutableString *path = [NSMutableString stringWithString:hash];
         [path appendString:@"_dcache"];
         resolve(path);
     } else {
