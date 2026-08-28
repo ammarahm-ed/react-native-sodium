@@ -777,12 +777,35 @@ RCT_EXPORT_METHOD(encryptFile:(NSDictionary*)passwordOrKey data:(NSDictionary *)
     }
     
     if ([data[@"type"]  isEqual: @"base64"]) {
-        NSData *b64 = [[NSData alloc] initWithBase64EncodedString:[data valueForKey:@"data"] options:0];
+        NSString *b64String = data[@"data"];
+        NSData *b64 = b64String == nil ? nil : [[NSData alloc] initWithBase64EncodedString:b64String options:0];
+        if (b64 == nil) {
+            reject(ESODIUM, @"encryptFile: type is 'base64' but 'data' is missing or not valid base64", nil);
+            return;
+        }
         length = [NSNumber numberWithLong:b64.length];
         inputStream = [NSInputStream inputStreamWithData:b64];
     } else {
-        length = [NSNumber numberWithLong:[[fmngr attributesOfItemAtPath:data[@"uri"] error:nil] fileSize]];
-        inputStream = [NSInputStream inputStreamWithFileAtPath:data[@"uri"]];
+        NSString *uri = data[@"uri"];
+        if (uri == nil || [uri length] == 0) {
+            reject(ESODIUM, @"encryptFile: 'uri' is missing", nil);
+            return;
+        }
+        // A missing file reported fileSize 0, which encrypted nothing and still
+        // resolved with a valid looking cipher.
+        NSError *attributesError = nil;
+        NSDictionary *attributes = [fmngr attributesOfItemAtPath:uri error:&attributesError];
+        if (attributes == nil) {
+            reject(ESODIUM, [NSString stringWithFormat:@"encryptFile: cannot read %@: %@", uri, attributesError.localizedDescription], attributesError);
+            return;
+        }
+        length = [NSNumber numberWithUnsignedLongLong:[attributes fileSize]];
+        inputStream = [NSInputStream inputStreamWithFileAtPath:uri];
+    }
+
+    if (inputStream == nil) {
+        reject(ESODIUM, @"encryptFile: could not open the input stream", nil);
+        return;
     }
     
     crypto_secretstream_xchacha20poly1305_state state;
@@ -794,9 +817,30 @@ RCT_EXPORT_METHOD(encryptFile:(NSDictionary*)passwordOrKey data:(NSDictionary *)
     [outputDic setValue:hash forKey:@"hash"];
     [outputDic setValue:data[@"appGroupId"] forKey:@"appGroupId"];
     NSOutputStream *outputStream = [self getOutputStream:outputDic type:@"file"];
+    if (outputStream == nil) {
+        reject(ESODIUM, [NSString stringWithFormat:@"encryptFile: could not create the output file for hash %@", hash], nil);
+        return;
+    }
     
     [outputStream open];
     [inputStream open];
+
+    // Without this an unopenable destination silently swallowed every write and
+    // the call still resolved with metadata for a file that was never written.
+    if (outputStream.streamStatus == NSStreamStatusError) {
+        NSError *streamError = outputStream.streamError;
+        [outputStream close];
+        [inputStream close];
+        reject(ESODIUM, [NSString stringWithFormat:@"encryptFile: could not open the output file: %@", streamError.localizedDescription], streamError);
+        return;
+    }
+    if (inputStream.streamStatus == NSStreamStatusError) {
+        NSError *streamError = inputStream.streamError;
+        [outputStream close];
+        [inputStream close];
+        reject(ESODIUM, [NSString stringWithFormat:@"encryptFile: could not open the input: %@", streamError.localizedDescription], streamError);
+        return;
+    }
     
     NSError *transformError = nil;
     int result = [self transform:state inputStream:inputStream outputStream:outputStream inputlength:length chunkSize:chunk_size decrypt:false error:&transformError];
