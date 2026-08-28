@@ -48,6 +48,10 @@ public class RCTSodiumModule extends ReactContextBaseJavaModule {
 
     static final String ESODIUM = "ESODIUM";
     static final String ERR_FAILURE = "FAILURE";
+    // Distinguishes an authentication-tag mismatch (almost always a wrong key)
+    // from every other failure. The message stays ERR_FAILURE because callers
+    // match on it to report "Incorrect password".
+    static final String ERR_BAD_MAC = "BAD_MAC";
 
     final int iv_length = 24;
     final int salt_length = 16;
@@ -468,7 +472,8 @@ public class RCTSodiumModule extends ReactContextBaseJavaModule {
                     int result = Sodium.crypto_aead_xchacha20poly1305_ietf_encrypt(cipher, cipher_length, dataB, dataB.length, null, 0, null, iv, key);
 
                     if (result != 0) {
-                        p.reject(ESODIUM, ERR_FAILURE);
+                        p.reject(ESODIUM, "crypto_aead_xchacha20poly1305_ietf_encrypt failed (result "
+                                + result + ", " + dataB.length + " bytes input, " + key.length + " byte key)");
                         return;
                     }
 
@@ -510,7 +515,8 @@ public class RCTSodiumModule extends ReactContextBaseJavaModule {
                 int result = Sodium.crypto_aead_xchacha20poly1305_ietf_encrypt(cipher, cipher_length, dataB, dataB.length, null, 0, null, iv, key);
 
                 if (result != 0) {
-                    p.reject(ESODIUM, ERR_FAILURE);
+                    p.reject(ESODIUM, "crypto_aead_xchacha20poly1305_ietf_encrypt failed (result "
+                            + result + ", " + dataB.length + " bytes input, " + key.length + " byte key)");
                     return;
                 }
 
@@ -538,7 +544,9 @@ public class RCTSodiumModule extends ReactContextBaseJavaModule {
                 int result = Sodium.crypto_aead_xchacha20poly1305_ietf_decrypt(plainText, plaintext_length, null, cipherb, cipherb.length, null, 0, iv, key);
 
                 if (result != 0) {
-                    p.reject(ESODIUM, ERR_FAILURE);
+                    p.reject(ERR_BAD_MAC, ERR_FAILURE, new Exception("crypto_aead_xchacha20poly1305_ietf_decrypt failed (result "
+                                + result + ", " + cipherb.length + " byte ciphertext, " + iv.length
+                                + " byte iv, " + key.length + " byte key)"));
                     return;
                 }
 
@@ -573,7 +581,9 @@ public class RCTSodiumModule extends ReactContextBaseJavaModule {
                     int result = Sodium.crypto_aead_xchacha20poly1305_ietf_decrypt(plainText, plaintext_length, null, cipherb, cipherb.length, null, 0, iv, key);
 
                     if (result != 0) {
-                        p.reject(ESODIUM, ERR_FAILURE);
+                        p.reject(ERR_BAD_MAC, ERR_FAILURE, new Exception("crypto_aead_xchacha20poly1305_ietf_decrypt failed (result "
+                                    + result + ", " + cipherb.length + " byte ciphertext, " + iv.length
+                                    + " byte iv, " + key.length + " byte key)"));
                         return;
                     }
 
@@ -601,7 +611,7 @@ public class RCTSodiumModule extends ReactContextBaseJavaModule {
             map.putString("salt", Base64.encodeToString(pair.second, variant));
             p.resolve(map);
         } catch (Throwable t) {
-            p.reject(ESODIUM, ERR_FAILURE, t);
+            p.reject(ESODIUM, t.getMessage() == null ? ERR_FAILURE : "deriveKey: " + t.getMessage(), t);
         }
     }
 
@@ -625,7 +635,7 @@ public class RCTSodiumModule extends ReactContextBaseJavaModule {
             p.resolve(Base64.encodeToString(key, variant));
 
         } catch (Throwable t) {
-            p.reject(ESODIUM, ERR_FAILURE, t);
+            p.reject(ESODIUM, t.getMessage() == null ? ERR_FAILURE : "hashPassword: " + t.getMessage(), t);
         }
     }
 }
