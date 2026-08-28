@@ -89,6 +89,23 @@ RCT_EXPORT_MODULE();
     return [NSData dataWithBase64UrlEncodedString:b64];
 }
 
+/**
+ * Caller supplied payloads are decoded leniently: android decoded these with the
+ * url-safe alphabet while iOS used the standard one and additionally rejected
+ * unpadded input, so the same value worked on one platform and failed on the
+ * other. Cipher fields keep using the strict url-safe variant.
+ */
+- (NSData*) b642binAny:(NSString*)b64 {
+    if (b64 == nil) return nil;
+    NSMutableString *normalized = [NSMutableString stringWithString:b64];
+    NSRange all = NSMakeRange(0, normalized.length);
+    [normalized replaceOccurrencesOfString:@"-" withString:@"+" options:0 range:all];
+    all = NSMakeRange(0, normalized.length);
+    [normalized replaceOccurrencesOfString:@"_" withString:@"/" options:0 range:all];
+    while (normalized.length % 4 != 0) [normalized appendString:@"="];
+    return [[NSData alloc] initWithBase64EncodedString:normalized options:0];
+}
+
 -  (NSMutableDictionary *) crypto_pwhash:(nonnull NSString*)password salt:(NSString*)salt fallbackKey:(BOOL)fallbackKey
 {
     const char *dpassword = [password cStringUsingEncoding:NSUTF8StringEncoding];
@@ -341,7 +358,7 @@ RCT_EXPORT_METHOD(hashFile:(NSDictionary *)data resolve: (RCTPromiseResolveBlock
             if (error) *error = NAError(NAErrorCodeInvalidData, @"hashFile: type is 'base64' but 'data' is missing");
             return nil;
         }
-        NSData *b64 = [[NSData alloc] initWithBase64EncodedString:b64String options:0];
+        NSData *b64 = [self b642binAny:b64String];
         if (b64 == nil) {
             if (error) *error = NAError(NAErrorCodeInvalidData, @"hashFile: 'data' is not valid base64");
             return nil;
@@ -616,7 +633,7 @@ RCT_EXPORT_METHOD(encryptMulti:(NSDictionary*)passwordOrKey array:(NSArray *)arr
         
         if ([[data valueForKey:@"type"] isEqual:@"b64"]) {
             
-            ddata = [[NSData alloc] initWithBase64EncodedString:[data valueForKey:@"data"] options:0];
+            ddata = [self b642binAny:[data valueForKey:@"data"]];
         } else {
             ddata = [[data valueForKey:@"data"] dataUsingEncoding:NSUTF8StringEncoding];
         }
@@ -668,7 +685,7 @@ RCT_EXPORT_METHOD(encrypt:(NSDictionary*)passwordOrKey data:(NSDictionary *)data
     
     if ([[data valueForKey:@"type"] isEqual:@"b64"]) {
         
-        ddata = [[NSData alloc] initWithBase64EncodedString:[data valueForKey:@"data"] options:0];
+        ddata = [self b642binAny:[data valueForKey:@"data"]];
     } else {
         ddata = [[data valueForKey:@"data"] dataUsingEncoding:NSUTF8StringEncoding];
     }
@@ -820,7 +837,7 @@ RCT_EXPORT_METHOD(encryptFile:(NSDictionary*)passwordOrKey data:(NSDictionary *)
     
     if ([data[@"type"]  isEqual: @"base64"]) {
         NSString *b64String = data[@"data"];
-        NSData *b64 = b64String == nil ? nil : [[NSData alloc] initWithBase64EncodedString:b64String options:0];
+        NSData *b64 = [self b642binAny:b64String];
         if (b64 == nil) {
             reject(ESODIUM, @"encryptFile: type is 'base64' but 'data' is missing or not valid base64", nil);
             return;

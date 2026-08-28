@@ -264,6 +264,23 @@ public class RCTSodiumModule extends ReactContextBaseJavaModule {
         return value;
     }
 
+    /**
+     * Caller supplied payloads are decoded leniently: iOS historically decoded
+     * these as standard base64 while android used the url-safe alphabet, so the
+     * same input worked on one platform and failed on the other. Cipher fields
+     * keep using the strict url-safe variant.
+     */
+    private byte[] decodeAnyBase64(String value, String owner, String field) throws Exception {
+        int[] alphabets = {Base64.NO_WRAP, Base64.NO_WRAP | Base64.URL_SAFE};
+        for (int flags : alphabets) {
+            try {
+                return Base64.decode(value, flags);
+            } catch (IllegalArgumentException ignored) {
+            }
+        }
+        throw new Exception(owner + ": '" + field + "' is not valid base64 (standard or url-safe)");
+    }
+
     private byte[] decodeBase64(String value, String field) throws Exception {
         try {
             return Base64.decode(value, variant);
@@ -306,11 +323,7 @@ public class RCTSodiumModule extends ReactContextBaseJavaModule {
             String b64 = optString(data, "data");
             if (b64 == null)
                 throw new Exception("getInputStream: type is 'base64' but 'data' is missing");
-            try {
-                return new ByteArrayInputStream(Base64.decode(b64, Base64.NO_WRAP));
-            } catch (IllegalArgumentException e) {
-                throw new Exception("getInputStream: 'data' is not valid base64: " + e.getMessage(), e);
-            }
+            return new ByteArrayInputStream(decodeAnyBase64(b64, "getInputStream", "data"));
         }
 
         String uri = optString(data, "uri");
@@ -549,7 +562,7 @@ public class RCTSodiumModule extends ReactContextBaseJavaModule {
 
                     String plain = requireString(data, "data", "encryptMulti");
                     if ("b64".equals(optString(data, "type"))) {
-                        dataB = decodeBase64(plain, "data");
+                        dataB = decodeAnyBase64(plain, "encryptMulti", "data");
                     } else {
                         dataB = plain.getBytes(StandardCharsets.UTF_8);
                     }
@@ -595,7 +608,7 @@ public class RCTSodiumModule extends ReactContextBaseJavaModule {
 
                 String plain = requireString(data, "data", "encrypt");
                 if ("b64".equals(optString(data, "type"))) {
-                    dataB = decodeBase64(plain, "data");
+                    dataB = decodeAnyBase64(plain, "encrypt", "data");
                 } else {
                     dataB = plain.getBytes(StandardCharsets.UTF_8);
                 }
