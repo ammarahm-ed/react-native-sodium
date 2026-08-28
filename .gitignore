@@ -19,3 +19,6 @@ xcuserdata
 # OSX
 #
 .DS_Store
+
+# Local editor workspace files
+*.code-workspace
