@@ -369,26 +369,34 @@ RCT_EXPORT_METHOD(hashFile:(NSDictionary *)data resolve: (RCTPromiseResolveBlock
 }
 
 
-- (NSOutputStream *) getOutputStream:(NSDictionary *)data type:(NSString *)type {
+- (NSOutputStream *) getOutputStream:(NSDictionary *)data type:(NSString *)type path:(NSString **)outPath {
     NSOutputStream *outputStream;
+    if (outPath) *outPath = nil;
     if (data[@"iv"] != nil) {
         if ([type isEqualToString:@"text"] || [type isEqualToString:@"base64"]) {
             outputStream = [[NSOutputStream alloc] initToMemory];
         } else if ([type isEqualToString:@"cache"]) {
             
             NSFileManager *fmngr = [NSFileManager defaultManager];
+            if (data[@"hash"] == nil) return nil;
             NSMutableString *path = [NSMutableString stringWithString:data[@"hash"]];
             [path appendString:@"_dcache"];
             NSString *outputPath = [SimpleFilesCache pathForName:path];
             [self removeFileIfExists:path];
             [fmngr createFileAtPath:outputPath contents:nil attributes:nil];
             outputStream = [NSOutputStream outputStreamToFileAtPath:outputPath append:NO];
+            if (outPath) *outPath = outputPath;
         } else {
-            NSString *path = data[@"uri"];
+            NSString *directory = data[@"uri"];
+            NSString *fileName = data[@"fileName"];
+            if (directory == nil || fileName == nil) return nil;
             NSFileManager *fmngr = [NSFileManager defaultManager];
-            path = [path stringByAppendingString:data[@"fileName"]];
+            // stringByAppendingString: joined these with no separator, so the
+            // decrypted file landed next to the target directory rather than in it.
+            NSString *path = [directory stringByAppendingPathComponent:fileName];
             [fmngr createFileAtPath:path contents:nil attributes:nil];
             outputStream = [NSOutputStream outputStreamToFileAtPath:path append:NO];
+            if (outPath) *outPath = path;
         }
         
     } else {
@@ -406,6 +414,7 @@ RCT_EXPORT_METHOD(hashFile:(NSDictionary *)data resolve: (RCTPromiseResolveBlock
         }
         [fmngr createFileAtPath:outputPath contents:nil attributes:nil];
         outputStream = [NSOutputStream outputStreamToFileAtPath:outputPath append:NO];
+        if (outPath) *outPath = outputPath;
         
     }
     
@@ -821,7 +830,7 @@ RCT_EXPORT_METHOD(encryptFile:(NSDictionary*)passwordOrKey data:(NSDictionary *)
     NSMutableDictionary *outputDic = [NSMutableDictionary dictionaryWithDictionary:data];
     [outputDic setValue:hash forKey:@"hash"];
     [outputDic setValue:data[@"appGroupId"] forKey:@"appGroupId"];
-    NSOutputStream *outputStream = [self getOutputStream:outputDic type:@"file"];
+    NSOutputStream *outputStream = [self getOutputStream:outputDic type:@"file" path:nil];
     if (outputStream == nil) {
         reject(ESODIUM, [NSString stringWithFormat:@"encryptFile: could not create the output file for hash %@", hash], nil);
         return;
@@ -931,8 +940,21 @@ RCT_EXPORT_METHOD(decryptFile:(NSDictionary*)passwordOrKey cipher:(NSDictionary*
     NSData *iv = [self b642bin:[cipher objectForKey:@"iv"]];
     crypto_secretstream_xchacha20poly1305_state state;
     crypto_secretstream_xchacha20poly1305_init_pull(&state,[iv bytes], [key bytes]);
-    NSOutputStream *outputStream = [self getOutputStream:cipher type:type];
+    NSString *writtenPath = nil;
+    NSOutputStream *outputStream = [self getOutputStream:cipher type:type path:&writtenPath];
+    if (outputStream == nil) {
+        [inputStream close];
+        reject(ESODIUM, [NSString stringWithFormat:@"decryptFile: could not create the output for type '%@'", type], nil);
+        return;
+    }
     [outputStream open];
+    if (outputStream.streamStatus == NSStreamStatusError) {
+        NSError *streamError = outputStream.streamError;
+        [outputStream close];
+        [inputStream close];
+        reject(ESODIUM, [NSString stringWithFormat:@"decryptFile: could not open the output: %@", streamError.localizedDescription], streamError);
+        return;
+    }
     [inputStream open];
     
     NSError *transformError = nil;
@@ -956,7 +978,8 @@ RCT_EXPORT_METHOD(decryptFile:(NSDictionary*)passwordOrKey cipher:(NSDictionary*
         [path appendString:@"_dcache"];
         resolve(path);
     } else {
-        resolve(nil);
+        // Previously resolved nil, forcing callers to rebuild the path themselves.
+        resolve(writtenPath);
     }
     [inputStream close];
     [outputStream close];
