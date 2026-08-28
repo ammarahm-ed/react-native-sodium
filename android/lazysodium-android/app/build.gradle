@@ -1,0 +1,322 @@
+/*
+ * Copyright (c) Terl Tech Ltd • 04/04/2020, 00:05 • goterl.com
+ *
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v2.0. If a copy of the MPL was not distributed with this
+ * file, you can obtain one at http://mozilla.org/MPL/2.0/.
+ */
+
+import java.security.Signature
+
+plugins {
+    id 'com.android.library'
+    id 'maven-publish'
+    id 'org.jreleaser' version '1.18.0'
+    id 'signing'
+    id 'org.jetbrains.kotlin.android'
+}
+
+ext {
+    artifactId = "lazysodium-android"
+    groupId = "com.goterl"
+    version = '5.2.0'
+    description = "Lazysodium (Android) makes it effortless for Android " +
+            "developers to get started with Libsodium's cryptography."
+    androidTestDir = "src/androidTest/java/com/goterl/lazysodium"
+    javaTestDir = "../lazysodium-java/src/test/java/com/goterl/lazysodium"
+
+    jUnitVersion = "4.13.2"
+    androidXJUnitVersion = "1.2.1"
+    androidXEspressoVersion = "3.6.1"
+    androidXTestingCoreVersion = "2.2.0"
+    androidXTestCoreVersion = "1.6.1"
+    kotlinCoroutinesVersion = "1.10.2"
+}
+
+group project.ext.groupId
+version = project.ext.version
+
+android {
+    compileSdk 36
+    defaultConfig {
+        minSdkVersion 21
+        targetSdk 36
+        versionCode 17
+        multiDexEnabled true
+        versionName project.ext.version
+        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+
+        // Typically we would need to clear data between every run
+        // but we don't need to in this test suite as we aren't
+        // running conventional espresso tests. Speeds up tests 2x.
+        // testInstrumentationRunnerArguments clearPackageData: 'true'
+    }
+    buildTypes {
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+        }
+    }
+    sourceSets.main {
+        jni.srcDirs = []
+        jniLibs.srcDirs = ['src/main/jniLibs']
+
+        java {
+            srcDir "../lazysodium-java/src/main/java"
+            // Be sure to update lint.xml in the project root if any other
+            // excluded files are added.
+            exclude "com/goterl/lazysodium/utils/LibraryLoader.java"
+            exclude "com/goterl/lazysodium/SodiumJava.java"
+            exclude "com/goterl/lazysodium/LazySodiumJava.java"
+        }
+    }
+
+    namespace "com.goterl.lazysodium"
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    lintOptions {
+        lintConfig rootProject.file('lint.xml')
+    }
+
+    packagingOptions {
+        exclude '../lazysodium-java/src/test/java'
+        jniLibs.keepDebugSymbols.add("**/libsodium.so")
+    }
+
+    testOptions {
+        animationsDisabled = true
+        execution 'ANDROIDX_TEST_ORCHESTRATOR'
+    }
+    kotlinOptions {
+        jvmTarget = '21'
+    }
+}
+
+void loadProps() {
+    File secretPropsFile = project.rootProject.file('local.properties')
+    if (secretPropsFile.exists()) {
+        Properties p = new Properties()
+        new FileInputStream(secretPropsFile).withCloseable { is ->
+            p.load(is)
+        }
+        p.each { name, value ->
+            ext[name] = value
+        }
+    } else {
+        ext.isCi = true
+    }
+}
+
+loadProps()
+
+// Return an empty string if a property
+// cannot be found
+String getProp(String propName) {
+    if (ext.hasProperty(propName) != null) {
+        return ext[propName]
+    } else {
+        ""
+    }
+}
+
+String getSonatypeUserName() {
+    return findProperty("ossrhUsername")
+}
+
+String getSonatypePassword() {
+    return findProperty("ossrhPassword")
+}
+
+// Don't export documentation
+tasks.withType(Javadoc).all { enabled = false }
+
+tasks.withType(Test) {
+    testLogging {
+        exceptionFormat "full"
+        events "started", "skipped", "passed", "failed"
+        showStandardStreams true
+    }
+}
+
+
+dependencies {
+    implementation 'net.java.dev.jna:jna:5.17.0@aar'
+    implementation 'androidx.core:core-ktx:1.16.0'
+
+    // Test libs
+    testImplementation "junit:junit:$jUnitVersion"
+    testImplementation "androidx.arch.core:core-testing:$androidXTestingCoreVersion"
+    testImplementation "org.jetbrains.kotlinx:kotlinx-coroutines-test:$kotlinCoroutinesVersion"
+    testImplementation "org.jetbrains.kotlinx:kotlinx-coroutines-core:$kotlinCoroutinesVersion"
+    testImplementation "androidx.test:runner:$androidXTestCoreVersion"
+
+    androidTestImplementation "androidx.test:core:$androidXTestCoreVersion"
+    androidTestImplementation "androidx.test.ext:junit:$androidXJUnitVersion"
+    androidTestImplementation "androidx.test:rules:$androidXTestCoreVersion"
+    androidTestImplementation "androidx.test:runner:$androidXTestCoreVersion"
+    androidTestUtil "androidx.test:orchestrator:1.5.1"
+    androidTestImplementation "androidx.test.espresso:espresso-core:$androidXEspressoVersion"
+    androidTestImplementation "androidx.test.espresso:espresso-contrib:$androidXEspressoVersion"
+    androidTestImplementation "androidx.arch.core:core-testing:$androidXTestingCoreVersion"
+}
+
+Signature.metaClass.getToSignArtifact = { ->
+    return (delegate as Signature).source
+}
+
+// Tasks
+signing {
+    // This will use the GPG Agent
+    // to sign the jar
+    useGpgCmd()
+    sign publishing.publications
+}
+
+task sourcesJar(type: Jar) {
+    archiveClassifier = 'sources'
+    from android.sourceSets.main.java.srcDirs
+}
+
+task javadoc(type: Javadoc) {
+    source = android.sourceSets.main.java.srcDirs
+    classpath += project.files(android.getBootClasspath().join(File.pathSeparator))
+}
+
+task javadocJar(type: Jar, dependsOn: javadoc) {
+    archiveClassifier = 'javadoc'
+    from javadoc.destinationDir
+}
+
+
+task signPom(type: Sign) {
+    sign project.file("$buildDir/publications/release/pom-default.xml")
+
+    // The signing plugin does not seem to notice
+    // it when the publications folder with the
+    // signature has been deleted. So we always
+    // create a new signature
+    outputs.upToDateWhen { false }
+}
+
+artifacts {
+    archives sourcesJar, javadocJar
+}
+
+Closure createPomClosure = {
+    def root = asNode()
+    root.appendNode('description', project.ext.description)
+    root.appendNode('name', project.ext.artifactId)
+    root.appendNode('url', 'https://github.com/terl/lazysodium-android')
+
+    def scm = root.appendNode('scm')
+    scm.appendNode("connection", "scm:git:git://github.com/terl/lazysodium-android.git")
+    scm.appendNode("developerConnection", "scm:git:ssh://github.com/terl/lazysodium-android")
+    scm.appendNode("url", "http://github.com/terl/lazysodium-android")
+
+    def license = root.appendNode('licenses').appendNode('license')
+    license.appendNode('name', 'Mozilla Public License, Version 2.0')
+    license.appendNode('url', 'http://www.mozilla.org/MPL/2.0/index.txt')
+    license.appendNode('distribution', 'repo')
+
+    def developer = root.appendNode('developers').appendNode('developer')
+    developer.appendNode('name', 'Terl Tech Ltd')
+    developer.appendNode('email', 'hello@terl.co')
+
+    def dependenciesNode = root.appendNode('dependencies')
+    configurations.implementation.allDependencies.each {
+        if (it.group != null && (it.name != null || "unspecified".equals(it.name)) && it.version != null) {
+            def dependencyNode = dependenciesNode.appendNode('dependency')
+            dependencyNode.appendNode('groupId', it.group)
+            dependencyNode.appendNode('artifactId', it.name)
+            dependencyNode.appendNode('version', it.version)
+        }
+    }
+}
+
+// jreleaser {
+//     gitRootSearch = true
+//     project {
+//         name = "lazysodium-android"
+//         languages {
+//             java {
+//                 groupId = 'com.goterl'
+//                 artifactId = "lazysodium-android"
+//                 mainModule = "com.goterl.lazysodium"
+//             }
+//         }
+//     }
+//     signing {
+//         active = 'ALWAYS'
+//         mode = 'FILE'
+//         armored = true
+//         verify = true
+//         passphrase = findProperty("signing.password")
+//         publicKey = findProperty("key.public.path")
+//         secretKey = findProperty("key.private.path")
+//     }
+//     release {
+//         github {
+//             token = findProperty("github.token")
+//             repoOwner = "terl"
+//             host = 'github.com'
+//             username = 'gurpreet-'
+//             branch = 'master'
+//         }
+//     }
+//     deploy {
+//         maven {
+//             mavenCentral {
+//                 'release-deploy' {
+//                     active = 'RELEASE'
+//                     url = 'https://central.sonatype.com/api/v1/publisher'
+//                     applyMavenCentralRules = true
+//                     verifyPom = false
+//                     stagingRepository('build/staging-deploy')
+//                     username = getSonatypeUserName()
+//                     password = getSonatypePassword()
+//                 }
+//             }
+//             nexus2 {
+//                 'snapshot-deploy' {
+//                     active = 'SNAPSHOT'
+//                     url = 'https://central.sonatype.com/repository/maven-snapshots'
+//                     snapshotUrl = 'https://central.sonatype.com/repository/maven-snapshots'
+//                     applyMavenCentralRules = true
+//                     snapshotSupported = true
+//                     closeRepository = true
+//                     releaseRepository = true
+//                     stagingRepository('build/staging-deploy')
+//                     username = getSonatypeUserName()
+//                     password = getSonatypePassword()
+//                 }
+//             }
+//         }
+//     }
+// }
+
+// afterEvaluate {
+//     publishing {
+//         publications {
+//             maven(MavenPublication) {
+//                 groupId project.ext.groupId
+//                 artifactId project.ext.artifactId
+//                 version project.ext.version
+
+//                 artifact bundleReleaseAar
+//                 artifact sourcesJar
+//                 artifact javadocJar
+
+//                 pom.withXml createPomClosure
+//             }
+//         }
+//         repositories {
+//             maven {
+//                 url = layout.buildDirectory.dir('staging-deploy')
+//             }
+//         }
+//     }
+// }

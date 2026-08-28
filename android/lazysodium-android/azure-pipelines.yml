@@ -1,0 +1,30 @@
+# DEPRECATED.
+# Azure Pipelines has been deprecated in favour of
+# GitHub Actions. See the .github/workflows folder
+
+# Android
+# Build your Android project with Gradle.
+# Add steps that test, sign, and distribute the APK, save build artifacts, and more:
+# https://docs.microsoft.com/azure/devops/pipelines/languages/android
+
+trigger:
+- master
+
+jobs:
+- job: A
+  displayName: "Run Android tests"
+  pool:
+    vmImage: 'windows-latest'
+  steps:
+  - checkout: self
+    fetchDepth: 5
+    submodules: true
+  - task: Gradle@2
+    inputs:
+      workingDirectory: ''
+      gradleWrapperFile: 'gradlew'
+      gradleOptions: '-Xmx3072m'
+      publishJUnitResults: false
+      testResultsFiles: '**/TEST-*.xml'
+      tasks: 'assembleDebug test'
+    displayName: gradlew assembleDebug test

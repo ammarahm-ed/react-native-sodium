@@ -1,1 +1,1 @@
-include ':lazysodium'
+include ':lazysodium-android'

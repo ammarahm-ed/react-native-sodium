@@ -139,7 +139,7 @@ public class RCTSodiumModule extends ReactContextBaseJavaModule {
     }
 
     public WritableMap getCipherData(byte[] iv, byte[] salt, int length, String hash, byte[] cipher) {
-        WritableMap args = new Arguments().createMap();
+        WritableMap args = Arguments.createMap();
         args.putString("iv", Base64.encodeToString(iv, variant));
         args.putString("salt", Base64.encodeToString(salt, variant));
         args.putInt("length", length);
@@ -561,7 +561,7 @@ public class RCTSodiumModule extends ReactContextBaseJavaModule {
     public void deriveKey(final String password, final String salt, final Promise p) {
         try {
             Pair<byte[], byte[]> pair = crypto_pwhash(password, salt);
-            WritableMap map = new Arguments().createMap();
+            WritableMap map = Arguments.createMap();
             map.putString("key", Base64.encodeToString(pair.first, variant));
             map.putString("salt", Base64.encodeToString(pair.second, variant));
             p.resolve(map);
