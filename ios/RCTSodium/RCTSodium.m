@@ -476,7 +476,8 @@ RCT_EXPORT_METHOD(encryptMulti:(NSDictionary*)passwordOrKey array:(NSArray *)arr
         
         NSData *encryptedData = [AEAD encryptChaCha20Poly1305:ddata nonce:iv key:key additionalData:NULL error:&error];
         if (error != nil) {
-            reject(ESODIUM, ERR_FAILURE, nil);
+            reject(ESODIUM, [NSString stringWithFormat:@"encryptMulti: item %d of %d failed: %@", i, size, error.localizedDescription], error);
+            return;
         } else {
             NSMutableDictionary* dict = [NSMutableDictionary dictionary];
             NSString* base64Cipher = [self bin2b64:encryptedData];
