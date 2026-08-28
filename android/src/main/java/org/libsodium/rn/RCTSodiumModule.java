@@ -207,11 +207,21 @@ public class RCTSodiumModule extends ReactContextBaseJavaModule {
         // Keep: Required for RN built in Event Emitter Calls.
     }
 
-    public DocumentFile getFileFromUri(ReadableMap cipher) {
-        DocumentFile dir = DocumentFile.fromTreeUri(reactContext, Uri.parse(cipher.getString("uri")));
-        DocumentFile fileExists = dir.findFile(cipher.getString("fileName"));
+    public DocumentFile getFileFromUri(ReadableMap cipher) throws Exception {
+        String uri = requireString(cipher, "uri", "getFileFromUri");
+        String fileName = requireString(cipher, "fileName", "getFileFromUri");
+        String mime = requireString(cipher, "mime", "getFileFromUri");
+
+        DocumentFile dir = DocumentFile.fromTreeUri(reactContext, Uri.parse(uri));
+        if (dir == null)
+            throw new Exception("getFileFromUri: not a readable tree uri: " + uri);
+
+        DocumentFile fileExists = dir.findFile(fileName);
         if (fileExists != null) fileExists.delete();
-        DocumentFile documentFile = dir.createFile(cipher.getString("mime"), cipher.getString("fileName"));
+
+        DocumentFile documentFile = dir.createFile(mime, fileName);
+        if (documentFile == null)
+            throw new Exception("getFileFromUri: could not create '" + fileName + "' (" + mime + ") in " + uri);
         return documentFile;
     }
 
@@ -226,6 +236,22 @@ public class RCTSodiumModule extends ReactContextBaseJavaModule {
         } catch (Exception e) {
             return null;
         }
+    }
+
+    private int optInt(ReadableMap map, String field, int fallback) {
+        if (map == null || !map.hasKey(field) || map.isNull(field)) return fallback;
+        try {
+            return map.getInt(field);
+        } catch (Exception e) {
+            return fallback;
+        }
+    }
+
+    private String requireString(ReadableMap map, String field, String owner) throws Exception {
+        String value = optString(map, field);
+        if (value == null)
+            throw new Exception(owner + ": '" + field + "' is missing");
+        return value;
     }
 
     private byte[] decodeBase64(String value, String field) throws Exception {
@@ -333,7 +359,8 @@ public class RCTSodiumModule extends ReactContextBaseJavaModule {
     public void decryptFile(final ReadableMap passwordOrKey, final ReadableMap cipher, final String type, final Promise p) {
         AsyncTask.execute(() -> {
             try {
-                int chunkSizeFromCipher = cipher.getInt("chunkSize");
+                // Ciphers written before chunkSize was recorded always used 512 KiB.
+                int chunkSizeFromCipher = optInt(cipher, "chunkSize", 512 * 1024);
                 int CHUNK_SIZE = chunkSizeFromCipher + Sodium.crypto_secretstream_xchacha20poly1305_abytes();
                 Pair<byte[], byte[]> pair = getKey(passwordOrKey, cipher.getString("salt"));
                 byte[] key = pair.first;
@@ -349,7 +376,7 @@ public class RCTSodiumModule extends ReactContextBaseJavaModule {
                 } else if (type.equals("text")) {
                     outputStream = output;
                 } else if (type.equals("cache")) {
-                    outputPath = cipher.getString("hash") + "_dcache";
+                    outputPath = requireString(cipher, "hash", "decryptFile") + "_dcache";
                     outputStream = new FileOutputStream(getFilesFromFilesDirCache(outputPath, true));
                 } else {
                     outputFile = getFileFromUri(cipher);
@@ -357,11 +384,11 @@ public class RCTSodiumModule extends ReactContextBaseJavaModule {
                     outputStream = new FileOutputStream(descriptor.getFileDescriptor());
                 }
 
-                byte[] iv = Base64.decode(cipher.getString("iv"), variant);
+                byte[] iv = decodeBase64(requireString(cipher, "iv", "decryptFile"), "iv");
 
                 SecretStream.State state = lazySodium.cryptoSecretStreamInitPull(iv, Key.fromBytes(key));
 
-                File file = getFilesFromFilesDirCache(cipher.getString("hash"), false);
+                File file = getFilesFromFilesDirCache(requireString(cipher, "hash", "decryptFile"), false);
                 InputStream inputStream =
                         reactContext.getContentResolver().openInputStream(Uri.fromFile(file));
 
@@ -502,10 +529,11 @@ public class RCTSodiumModule extends ReactContextBaseJavaModule {
                     byte[] key = pair.first;
                     byte[] salt = pair.second;
 
-                    if (data.getString("type").equals("b64")) {
-                        dataB = Base64.decode(data.getString("data"), variant);
+                    String plain = requireString(data, "data", "encryptMulti");
+                    if ("b64".equals(optString(data, "type"))) {
+                        dataB = decodeBase64(plain, "data");
                     } else {
-                        dataB = data.getString("data").getBytes();
+                        dataB = plain.getBytes();
                     }
 
                     int length = dataB.length + a_bytes_length;
@@ -547,10 +575,11 @@ public class RCTSodiumModule extends ReactContextBaseJavaModule {
                 byte[] key = pair.first;
                 byte[] salt = pair.second;
 
-                if (data.getString("type").equals("b64")) {
-                    dataB = Base64.decode(data.getString("data"), variant);
+                String plain = requireString(data, "data", "encrypt");
+                if ("b64".equals(optString(data, "type"))) {
+                    dataB = decodeBase64(plain, "data");
                 } else {
-                    dataB = data.getString("data").getBytes();
+                    dataB = plain.getBytes();
                 }
 
                 int length = dataB.length + a_bytes_length;
@@ -582,8 +611,8 @@ public class RCTSodiumModule extends ReactContextBaseJavaModule {
                 Pair<byte[], byte[]> pair = getKey(passwordOrKey, cipher.getString("salt"));
                 byte[] key = pair.first;
 
-                byte[] cipherb = Base64.decode(cipher.getString("cipher"), variant);
-                byte[] iv = Base64.decode(cipher.getString("iv"), variant);
+                byte[] cipherb = decodeBase64(requireString(cipher, "cipher", "decrypt"), "cipher");
+                byte[] iv = decodeBase64(requireString(cipher, "iv", "decrypt"), "iv");
                 if (cipherb.length < a_bytes_length)
                     throw new Exception("ciphertext is only " + cipherb.length
                             + " bytes, need at least " + a_bytes_length);
@@ -602,7 +631,7 @@ public class RCTSodiumModule extends ReactContextBaseJavaModule {
                     return;
                 }
 
-                if (cipher.getString("output").equals("plain")) {
+                if ("plain".equals(optString(cipher, "output"))) {
                     String plain = new String(plainText);
                     p.resolve(plain);
                 } else {
@@ -625,8 +654,8 @@ public class RCTSodiumModule extends ReactContextBaseJavaModule {
                     Pair<byte[], byte[]> pair = getKey(passwordOrKey, cipher.getString("salt"));
                     byte[] key = pair.first;
 
-                    byte[] cipherb = Base64.decode(cipher.getString("cipher"), variant);
-                    byte[] iv = Base64.decode(cipher.getString("iv"), variant);
+                    byte[] cipherb = decodeBase64(requireString(cipher, "cipher", "decryptMulti"), "cipher");
+                    byte[] iv = decodeBase64(requireString(cipher, "iv", "decryptMulti"), "iv");
                     if (cipherb.length < a_bytes_length)
                         throw new Exception("ciphertext is only " + cipherb.length
                                 + " bytes, need at least " + a_bytes_length);
@@ -642,7 +671,7 @@ public class RCTSodiumModule extends ReactContextBaseJavaModule {
                         return;
                     }
 
-                    if (cipher.getString("output").equals("plain")) {
+                    if ("plain".equals(optString(cipher, "output"))) {
                         String plain = new String(plainText);
                         results.pushString(plain);
                     } else {
