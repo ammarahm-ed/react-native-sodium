@@ -1,7 +1,6 @@
 package org.libsodium.rn;
 
 import android.net.Uri;
-import android.os.AsyncTask;
 import android.os.ParcelFileDescriptor;
 import android.util.Base64;
 import android.util.Base64InputStream;
@@ -44,6 +43,7 @@ import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Objects;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 @ReactModule(name = "Sodium")
@@ -65,6 +65,13 @@ public class RCTSodiumModule extends ReactContextBaseJavaModule {
 
     final SodiumAndroid Sodium;
     final LazySodiumAndroid lazySodium;
+
+    // Bounded on purpose: every in-flight operation can hold an argon2 arena
+    // (8 MiB for deriveKey, 64 MiB for hashPassword) plus two chunk buffers, so
+    // unbounded concurrency turns into an allocation failure reported as
+    // "crypto_pwhash: failed".
+    private final ExecutorService executor = Executors.newFixedThreadPool(
+            Math.max(2, Math.min(4, Runtime.getRuntime().availableProcessors())));
 
     ReactContext reactContext;
 
@@ -101,6 +108,12 @@ public class RCTSodiumModule extends ReactContextBaseJavaModule {
         return "Sodium";
     }
 
+    @Override
+    public void invalidate() {
+        super.invalidate();
+        executor.shutdown();
+    }
+
 
     private byte[] randombytes_buf(int size) {
         byte[] buf = new byte[size];
@@ -131,7 +144,7 @@ public class RCTSodiumModule extends ReactContextBaseJavaModule {
 
     @ReactMethod
     public void hashFile(@Nullable final ReadableMap data, final Promise p) {
-        AsyncTask.execute(() -> {
+        executor.execute(() -> {
             try {
                 p.resolve(xxhash64(data));
             } catch (Exception e) {
@@ -334,7 +347,7 @@ public class RCTSodiumModule extends ReactContextBaseJavaModule {
     }
 
     public void encryptFile(final ReadableMap passwordOrKey, @Nullable final ReadableMap data, @Nullable final byte[] dataA, final Promise p) {
-        AsyncTask.execute(() -> {
+        executor.execute(() -> {
             try {
                 int CHUNK_SIZE = 512 * 1024;
                 Pair<byte[], byte[]> pair = getKey(passwordOrKey, null);
@@ -373,7 +386,7 @@ public class RCTSodiumModule extends ReactContextBaseJavaModule {
 
     @ReactMethod
     public void decryptFile(final ReadableMap passwordOrKey, final ReadableMap cipher, final String type, final Promise p) {
-        AsyncTask.execute(() -> {
+        executor.execute(() -> {
             try {
                 // Ciphers written before chunkSize was recorded always used 512 KiB.
                 int chunkSizeFromCipher = optInt(cipher, "chunkSize", 512 * 1024);
@@ -417,7 +430,7 @@ public class RCTSodiumModule extends ReactContextBaseJavaModule {
                 }
 
                 if (type.equals("base64") || type.equals("text")) {
-                    p.resolve(output.toString());
+                    p.resolve(output.toString("UTF-8"));
                 } else if (type.equals("file")) {
                     p.resolve(outputFile.getUri().toString());
                 } else {
@@ -531,7 +544,7 @@ public class RCTSodiumModule extends ReactContextBaseJavaModule {
 
     @ReactMethod
     public void encryptMulti(final ReadableMap passwordOrKey, final ReadableArray array, final Promise p) {
-        AsyncTask.execute(() -> {
+        executor.execute(() -> {
 
             WritableArray results = Arguments.createArray();
             // Derived once for the whole batch. Deriving per item ran argon2i
@@ -590,7 +603,7 @@ public class RCTSodiumModule extends ReactContextBaseJavaModule {
 
     @ReactMethod
     public void encrypt(final ReadableMap passwordOrKey, final ReadableMap data, final Promise p) {
-        AsyncTask.execute(() -> {
+        executor.execute(() -> {
             try {
 
                 byte[] dataB;
@@ -631,7 +644,7 @@ public class RCTSodiumModule extends ReactContextBaseJavaModule {
 
     @ReactMethod
     public void decrypt(final ReadableMap passwordOrKey, final ReadableMap cipher, final Promise p) {
-        AsyncTask.execute(() -> {
+        executor.execute(() -> {
             try {
                 Pair<byte[], byte[]> pair = getKey(passwordOrKey, cipher.getString("salt"));
                 byte[] key = pair.first;
@@ -671,7 +684,7 @@ public class RCTSodiumModule extends ReactContextBaseJavaModule {
 
     @ReactMethod
     public void decryptMulti(final ReadableMap passwordOrKey, final ReadableArray array, final Promise p) {
-        AsyncTask.execute(() -> {
+        executor.execute(() -> {
             WritableArray results = Arguments.createArray();
             // Cached across items so a batch sharing one salt derives once
             // rather than running argon2i per element.
@@ -724,7 +737,7 @@ public class RCTSodiumModule extends ReactContextBaseJavaModule {
 
     @ReactMethod
     public void deriveKey(final String password, final String salt, final Promise p) {
-        AsyncTask.execute(() -> {
+        executor.execute(() -> {
             try {
                 Pair<byte[], byte[]> pair = crypto_pwhash(password, salt);
                 WritableMap map = Arguments.createMap();
@@ -739,7 +752,7 @@ public class RCTSodiumModule extends ReactContextBaseJavaModule {
 
     @ReactMethod
     public void hashPassword(final String password, final String email, final Promise p) {
-        AsyncTask.execute(() -> {
+        executor.execute(() -> {
             try {
                 String app_salt = "oVzKtazBo7d8sb7TBvY9jw";
                 byte[] hash = new byte[16];
