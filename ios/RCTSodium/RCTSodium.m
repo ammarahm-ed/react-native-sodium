@@ -332,8 +332,16 @@ RCT_EXPORT_METHOD(hashFile:(NSDictionary *)data resolve: (RCTPromiseResolveBlock
         int end = fmin(start + chunk_size, length.longLongValue);
         long chunk_length = end - start;
         
-        [inputStream read:buffer maxLength:chunk_length];
-        
+        long read = [self readFully:inputStream into:buffer length:chunk_length];
+        if (read != chunk_length) {
+            free(buffer);
+            XXH64_freeState(state);
+            [inputStream close];
+            if (error) *error = NAError(NAErrorCodeFailure, ([NSString stringWithFormat:@"hashFile: short read on chunk %d of %d: wanted %ld bytes, got %ld",
+                                                              i + 1, (int) totalChunks, chunk_length, read]));
+            return nil;
+        }
+
         ec = XXH64_update (state, buffer, chunk_length);
         if (ec != XXH_OK) {
             free(buffer);
@@ -401,6 +409,22 @@ RCT_EXPORT_METHOD(hashFile:(NSDictionary *)data resolve: (RCTPromiseResolveBlock
 
 
 
+/**
+ * NSInputStream may return fewer bytes than asked for, and returns -1 on error.
+ * Ignoring that left the tail of the buffer holding whatever was there before,
+ * which then got encrypted as if it were file content.
+ */
+- (long) readFully:(NSInputStream *)inputStream into:(uint8_t *)buffer length:(long)length {
+    long total = 0;
+    while (total < length) {
+        NSInteger read = [inputStream read:buffer + total maxLength:(NSUInteger)(length - total)];
+        if (read < 0) return -1;
+        if (read == 0) break;
+        total += read;
+    }
+    return total;
+}
+
 -(int) transform:(crypto_secretstream_xchacha20poly1305_state)state inputStream:(NSInputStream *)inputStream outputStream:(NSOutputStream *)outputStream inputlength:(NSNumber *)inputLength chunkSize:(long)chunkSize decrypt:(BOOL)decrypt error:(NSError **)error {
     
     unsigned long long length = inputLength.longLongValue;
@@ -413,11 +437,21 @@ RCT_EXPORT_METHOD(hashFile:(NSDictionary *)data resolve: (RCTPromiseResolveBlock
     
     for (int i=0;i < totalChunks;i++) {
         long start = i * chunkSize;
-        int end = fmin(start + chunkSize, length);
+        long end = fmin(start + chunkSize, length);
         long chunk_length = end - start;
-        
-        [inputStream read:buffer maxLength:chunk_length];
-        
+
+        long read = [self readFully:inputStream into:buffer length:chunk_length];
+        if (read != chunk_length) {
+            free(buffer);
+            free(output_buffer);
+            [outputStream close];
+            [inputStream close];
+            if (error) *error = NAError(NAErrorCodeFailure, ([NSString stringWithFormat:@"short read on chunk %d of %d: wanted %ld bytes, got %ld (%@)",
+                                                              i + 1, (int) totalChunks, chunk_length, read,
+                                                              inputStream.streamError.localizedDescription ?: @"end of stream"]));
+            return -1;
+        }
+
         unsigned long output_chunk_length =  decrypt ? chunk_length - crypto_secretstream_xchacha20poly1305_abytes() :  chunk_length + crypto_secretstream_xchacha20poly1305_abytes();
         
         int result = 0;
@@ -444,8 +478,18 @@ RCT_EXPORT_METHOD(hashFile:(NSDictionary *)data resolve: (RCTPromiseResolveBlock
             return result;
         }
         
-        [outputStream write:output_buffer maxLength:output_chunk_length];
-        
+        NSInteger written = [outputStream write:output_buffer maxLength:output_chunk_length];
+        if (written != (NSInteger) output_chunk_length) {
+            free(buffer);
+            free(output_buffer);
+            [outputStream close];
+            [inputStream close];
+            if (error) *error = NAError(NAErrorCodeFailure, ([NSString stringWithFormat:@"short write on chunk %d of %d: wanted %lu bytes, wrote %ld (%@)",
+                                                              i + 1, (int) totalChunks, output_chunk_length, (long) written,
+                                                              outputStream.streamError.localizedDescription ?: @"no error reported"]));
+            return -1;
+        }
+
         [self sendProgressEvent:totalChunks progress:i];
         
     }
