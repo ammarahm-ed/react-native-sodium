@@ -618,12 +618,22 @@ RCT_EXPORT_METHOD(decryptMulti:(NSDictionary*)passwordOrKey data:(NSArray *)data
         NSData *decryptedData = [AEAD decryptChaCha20Poly1305:cipherb nonce:iv key:key additionalData:NULL error:&error];
         
         if (error != nil) {
-            reject(ESODIUM, ERR_FAILURE, nil);
-        } else {
-            if ([[cipher valueForKey:@"output"] isEqual:@"plain"]) {
-                NSString* s =[[NSString alloc] initWithData:decryptedData encoding:NSUTF8StringEncoding];
-                results[i] = s;
+            // Without the return the loop carried on and the next successful
+            // item assigned past the end of results, raising NSRangeException
+            // and taking the app down.
+            reject(ESODIUM, ERR_FAILURE, error);
+            return;
+        }
+
+        if ([[cipher valueForKey:@"output"] isEqual:@"plain"]) {
+            NSString* s = [[NSString alloc] initWithData:decryptedData encoding:NSUTF8StringEncoding];
+            if (s == nil) {
+                reject(ESODIUM, [NSString stringWithFormat:@"decryptMulti: item %d of %d decrypted to invalid UTF-8", i, size], nil);
+                return;
             }
+            [results addObject:s];
+        } else {
+            [results addObject:[self bin2b64:decryptedData]];
         }
         
     }
