@@ -524,7 +524,9 @@ public class RCTSodiumModule extends ReactContextBaseJavaModule {
                     results.pushMap(getCipherData(iv, salt, dataB.length, null, cipher));
 
                 } catch (Exception e) {
-                    p.reject(e);
+                    p.reject(ESODIUM, "encryptMulti: item " + i + " of " + array.size()
+                            + " failed: " + e.getMessage(), e);
+                    return;
                 }
             }
 
@@ -648,7 +650,9 @@ public class RCTSodiumModule extends ReactContextBaseJavaModule {
                     }
 
                 } catch (Exception e) {
-                    p.reject(e);
+                    p.reject(ESODIUM, "decryptMulti: item " + i + " of " + array.size()
+                            + " failed: " + e.getMessage(), e);
+                    return;
                 }
             }
             p.resolve(results);
