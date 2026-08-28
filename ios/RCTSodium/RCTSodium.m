@@ -87,6 +87,7 @@ RCT_EXPORT_MODULE();
     
     unsigned long long key_len = 32;
     unsigned char *key = (unsigned char *) sodium_malloc(key_len);
+    if (key == NULL) return NULL;
     
     unsigned long long ops = 3;
     unsigned long long memlimit = 1024 * 1024 * 8;
@@ -102,8 +103,12 @@ RCT_EXPORT_MODULE();
         return NULL;
     } else {
         NSMutableDictionary* dict = [NSMutableDictionary dictionary];
-        [dict setObject:[NSData dataWithBytesNoCopy:key length:key_len freeWhenDone:NO] forKey:@"key"];
+        // Copy out and release the guarded allocation. dataWithBytesNoCopy with
+        // freeWhenDone:NO meant nothing ever owned it, so every password based
+        // call leaked a sodium_malloc region.
+        [dict setObject:[NSData dataWithBytes:key length:key_len] forKey:@"key"];
         [dict setObject:dsalt forKey:@"salt"];
+        sodium_free(key);
         
         return dict;
     }
