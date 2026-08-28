@@ -44,6 +44,23 @@ RCT_EXPORT_MODULE();
     return NO;
 }
 
+/**
+ * Keeps argon2 and whole-file streaming off com.facebook.react.NativeModulesQueue,
+ * where they blocked every other native module for the duration of the call.
+ *
+ * Concurrent is safe now that the xxhash state, the secretstream state and the
+ * chunk buffers are all per-call rather than shared.
+ */
+- (dispatch_queue_t)methodQueue
+{
+    static dispatch_queue_t queue;
+    static dispatch_once_t onceToken;
+    dispatch_once(&onceToken, ^{
+        queue = dispatch_queue_create("com.reactnativesodium.crypto", DISPATCH_QUEUE_CONCURRENT);
+    });
+    return queue;
+}
+
 // Will be called when this module's first listener is added.
 -(void)startObserving {
     hasListeners = YES;
