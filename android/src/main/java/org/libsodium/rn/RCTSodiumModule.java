@@ -125,9 +125,15 @@ public class RCTSodiumModule extends ReactContextBaseJavaModule {
         byte[] passwordb = password.getBytes(StandardCharsets.UTF_8);
         byte[] saltb = new byte[salt_length];
         if (salt != null)
-            saltb = Base64.decode(salt, variant);
+            saltb = decodeBase64(salt, "salt");
         else
             Sodium.randombytes_buf(saltb, saltb.length);
+
+        // crypto_pwhash always reads salt_length bytes from this array, so a
+        // salt that decodes to anything shorter reads past the end of it.
+        if (saltb.length != salt_length)
+            throw new Exception("crypto_pwhash: salt must decode to " + salt_length
+                    + " bytes but decoded to " + saltb.length);
         int memlimit = 1024 * 1024 * 8;
         int result;
         try {
