@@ -387,6 +387,21 @@ public class RCTSodiumModule extends ReactContextBaseJavaModule {
         });
     }
 
+    /**
+     * InputStream.read(byte[]) is free to return fewer bytes than asked for, and
+     * a content provider backed by a pipe routinely does. The unfilled tail of
+     * the buffer would otherwise be encrypted as if it were real data.
+     */
+    private static int readFully(InputStream inputStream, byte[] buffer) throws Exception {
+        int total = 0;
+        while (total < buffer.length) {
+            int read = inputStream.read(buffer, total, buffer.length - total);
+            if (read == -1) break;
+            total += read;
+        }
+        return total;
+    }
+
     public void Transform(SecretStream.State state, InputStream inputStream, OutputStream outputStream, int chunkSize, boolean decrypt) throws Exception {
 
         try {
@@ -397,7 +412,11 @@ public class RCTSodiumModule extends ReactContextBaseJavaModule {
                 int start = i * chunkSize;
                 int end = Math.min(start + chunkSize, length);
                 byte[] input_chunk = new byte[end - start];
-                inputStream.read(input_chunk);
+                int read = readFully(inputStream, input_chunk);
+                if (read != input_chunk.length)
+                    throw new Exception("short read on chunk " + (i + 1) + " of " + (int) totalChunks
+                            + ": wanted " + input_chunk.length + " bytes, got " + read
+                            + " (stream reported " + length + " bytes)");
                 byte[] output_chunk = decrypt ? decryptChunk(state, input_chunk) : encryptChunk(state, input_chunk, i == totalChunks - 1);
                 if (output_chunk == null)
                     throw new Exception((decrypt ? "crypto_secretstream_xchacha20poly1305_pull"
