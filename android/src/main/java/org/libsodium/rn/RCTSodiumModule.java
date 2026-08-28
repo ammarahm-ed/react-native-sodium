@@ -207,22 +207,52 @@ public class RCTSodiumModule extends ReactContextBaseJavaModule {
         return documentFile;
     }
 
-    public Pair<byte[], byte[]> getKey(ReadableMap passwordOrKey, String cipherSalt) {
+    /**
+     * Reads a string field, treating a missing key, an explicit JS null and a
+     * non-string value all as "not provided" rather than throwing.
+     */
+    private String optString(ReadableMap map, String field) {
+        if (map == null || !map.hasKey(field) || map.isNull(field)) return null;
         try {
-            byte[] key = new byte[key_length];
-            byte[] salt = new byte[salt_length];
-            if (passwordOrKey.hasKey("key") && passwordOrKey.hasKey("salt")) {
-                key = Base64.decode(passwordOrKey.getString("key"), variant);
-                salt = Base64.decode(passwordOrKey.getString("salt"), variant);
-            } else if (passwordOrKey.hasKey("password")) {
-                Pair<byte[], byte[]> pair = crypto_pwhash(passwordOrKey.getString("password"), cipherSalt);
-                key = pair.first;
-                salt = pair.second;
-            }
-            return Pair.create(key, salt);
+            return map.getString(field);
         } catch (Exception e) {
             return null;
         }
+    }
+
+    private byte[] decodeBase64(String value, String field) throws Exception {
+        try {
+            return Base64.decode(value, variant);
+        } catch (IllegalArgumentException e) {
+            throw new Exception("getKey: '" + field + "' is not valid url-safe base64 (length "
+                    + value.length() + "): " + e.getMessage(), e);
+        }
+    }
+
+    public Pair<byte[], byte[]> getKey(ReadableMap passwordOrKey, String cipherSalt) throws Exception {
+        String keyB64 = optString(passwordOrKey, "key");
+        String saltB64 = optString(passwordOrKey, "salt");
+        String password = optString(passwordOrKey, "password");
+
+        if (keyB64 != null && saltB64 != null) {
+            byte[] key = decodeBase64(keyB64, "key");
+            byte[] salt = decodeBase64(saltB64, "salt");
+            if (key.length != key_length)
+                throw new Exception("getKey: 'key' must decode to " + key_length
+                        + " bytes but decoded to " + key.length);
+            return Pair.create(key, salt);
+        }
+
+        if (password != null) {
+            return crypto_pwhash(password, cipherSalt);
+        }
+
+        // Never fall through to an all-zero key: that silently encrypts real
+        // user data under a key of 32 zero bytes.
+        throw new Exception("getKey: expected { key, salt } or { password }, but got"
+                + " key=" + (keyB64 == null ? "missing" : "present")
+                + " salt=" + (saltB64 == null ? "missing" : "present")
+                + " password=" + (password == null ? "missing" : "present"));
     }
 
     public InputStream getInputStream(ReadableMap data) {
