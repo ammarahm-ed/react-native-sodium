@@ -18,18 +18,16 @@
 #import <math.h>
 #import "xxh3.h"
 
-@implementation RCTSodium
+// static: these had external linkage and could collide with any other object
+// file in the app that defines a symbol of the same name.
+static NSString * const ESODIUM = @"ESODIUM";
+static NSString * const ERR_FAILURE = @"FAILURE";
+static const long STREAM_CHUNK_SIZE = 512 * 1024;
 
-NSString * const ESODIUM = @"ESODIUM";
-NSString * const ERR_BAD_KEY = @"BAD_KEY";
-NSString * const ERR_BAD_MAC = @"BAD_MAC";
-NSString * const ERR_BAD_MSG = @"BAD_MSG";
-NSString * const ERR_BAD_NONCE = @"BAD_NONCE";
-NSString * const ERR_BAD_SEED = @"BAD_SEED";
-NSString * const ERR_BAD_SIG = @"BAD_SIG";
-NSString * const ERR_FAILURE = @"FAILURE";
-bool hasListeners;
-long STREAM_CHUNK_SIZE = 512 * 1024;
+@implementation RCTSodium {
+    // Was a file scope global, so every RCTSodium instance shared one flag.
+    BOOL _hasListeners;
+}
 
 RCT_EXPORT_MODULE();
 
@@ -63,12 +61,12 @@ RCT_EXPORT_MODULE();
 
 // Will be called when this module's first listener is added.
 -(void)startObserving {
-    hasListeners = YES;
+    _hasListeners = YES;
 }
 
 // Will be called when this module's last listener is removed, or on dealloc.
 -(void)stopObserving {
-    hasListeners = NO;
+    _hasListeners = NO;
 }
 
 - (NSData*) randombytes_buf:(size_t)len {
@@ -582,7 +580,7 @@ RCT_EXPORT_METHOD(hashFile:(NSDictionary *)data resolve: (RCTPromiseResolveBlock
 }
 
 - (void) sendProgressEvent:(double)total progress:(int)progress {
-    if (hasListeners) {
+    if (_hasListeners) {
         [self sendEventWithName:@"onSodiumProgress" body:@{@"total": [NSNumber numberWithDouble:total],@"progress":[NSNumber numberWithInt:progress]}];
     }
 }
