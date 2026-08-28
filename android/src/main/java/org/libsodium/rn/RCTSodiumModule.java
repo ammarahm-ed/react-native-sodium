@@ -41,6 +41,7 @@ import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Objects;
 import java.util.concurrent.Executors;
@@ -109,7 +110,7 @@ public class RCTSodiumModule extends ReactContextBaseJavaModule {
 
     private Pair<byte[], byte[]> crypto_pwhash(final String password, @Nullable final String salt) throws Exception {
         byte[] key = new byte[key_length];
-        byte[] passwordb = password.getBytes();
+        byte[] passwordb = password.getBytes(StandardCharsets.UTF_8);
         byte[] saltb = new byte[salt_length];
         if (salt != null)
             saltb = Base64.decode(salt, variant);
@@ -557,7 +558,7 @@ public class RCTSodiumModule extends ReactContextBaseJavaModule {
                     if ("b64".equals(optString(data, "type"))) {
                         dataB = decodeBase64(plain, "data");
                     } else {
-                        dataB = plain.getBytes();
+                        dataB = plain.getBytes(StandardCharsets.UTF_8);
                     }
 
                     int length = dataB.length + a_bytes_length;
@@ -603,7 +604,7 @@ public class RCTSodiumModule extends ReactContextBaseJavaModule {
                 if ("b64".equals(optString(data, "type"))) {
                     dataB = decodeBase64(plain, "data");
                 } else {
-                    dataB = plain.getBytes();
+                    dataB = plain.getBytes(StandardCharsets.UTF_8);
                 }
 
                 int length = dataB.length + a_bytes_length;
@@ -656,7 +657,7 @@ public class RCTSodiumModule extends ReactContextBaseJavaModule {
                 }
 
                 if ("plain".equals(optString(cipher, "output"))) {
-                    String plain = new String(plainText);
+                    String plain = new String(plainText, StandardCharsets.UTF_8);
                     p.resolve(plain);
                 } else {
                     p.resolve(Base64.encodeToString(plainText, variant));
@@ -705,7 +706,7 @@ public class RCTSodiumModule extends ReactContextBaseJavaModule {
                     }
 
                     if ("plain".equals(optString(cipher, "output"))) {
-                        String plain = new String(plainText);
+                        String plain = new String(plainText, StandardCharsets.UTF_8);
                         results.pushString(plain);
                     } else {
                         results.pushString(Base64.encodeToString(plainText, variant));
@@ -742,12 +743,12 @@ public class RCTSodiumModule extends ReactContextBaseJavaModule {
             try {
                 String app_salt = "oVzKtazBo7d8sb7TBvY9jw";
                 byte[] hash = new byte[16];
-                byte[] input = (app_salt + email).getBytes();
+                byte[] input = (app_salt + email).getBytes(StandardCharsets.UTF_8);
 
                 Sodium.crypto_generichash(hash, 16, input, input.length, null, 0);
 
                 byte[] key = new byte[32];
-                byte[] passwordb = password.getBytes();
+                byte[] passwordb = password.getBytes(StandardCharsets.UTF_8);
 
                 int result = Sodium.crypto_pwhash(key, 32, passwordb, passwordb.length, hash, 3, new NativeLong(1024 * 1024 * 64), PwHash.Alg.PWHASH_ALG_ARGON2ID13.getValue());
 
