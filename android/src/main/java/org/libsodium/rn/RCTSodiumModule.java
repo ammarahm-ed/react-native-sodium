@@ -3,7 +3,6 @@ package org.libsodium.rn;
 import android.net.Uri;
 import android.os.ParcelFileDescriptor;
 import android.util.Base64;
-import android.util.Base64InputStream;
 import android.util.Base64OutputStream;
 import android.util.Pair;
 
@@ -137,10 +136,6 @@ public class RCTSodiumModule extends ReactContextBaseJavaModule {
         return new Pair<byte[], byte[]>(key, saltb);
     }
 
-    @ReactMethod
-    public void encryptFile(final ReadableMap passwordOrKey, @Nullable final ReadableMap data, final Promise p) {
-        this.encryptFile(passwordOrKey, data, null, p);
-    }
 
     @ReactMethod
     public void hashFile(@Nullable final ReadableMap data, final Promise p) {
@@ -192,20 +187,6 @@ public class RCTSodiumModule extends ReactContextBaseJavaModule {
             args.putString("hashType", "xxh64");
         }
         return args;
-    }
-
-    public File getFileFromCache(String hash) {
-        try {
-            File file = new File(reactContext.getCacheDir(), hash);
-            if (file.exists()) {
-                file.delete();
-                file.createNewFile();
-            }
-            return file;
-        } catch (Exception e) {
-            return null;
-        }
-
     }
 
     public File getFilesFromFilesDirCache(String hash, Boolean deleteIfExists) throws Exception {
@@ -346,7 +327,8 @@ public class RCTSodiumModule extends ReactContextBaseJavaModule {
         return inputStream;
     }
 
-    public void encryptFile(final ReadableMap passwordOrKey, @Nullable final ReadableMap data, @Nullable final byte[] dataA, final Promise p) {
+    @ReactMethod
+    public void encryptFile(final ReadableMap passwordOrKey, @Nullable final ReadableMap data, final Promise p) {
         executor.execute(() -> {
             try {
                 int CHUNK_SIZE = 512 * 1024;
@@ -376,9 +358,7 @@ public class RCTSodiumModule extends ReactContextBaseJavaModule {
                 p.resolve(map);
 
             } catch (Exception e) {
-                if (p != null) {
-                    p.reject(e);
-                }
+                p.reject(e);
             }
         });
     }
