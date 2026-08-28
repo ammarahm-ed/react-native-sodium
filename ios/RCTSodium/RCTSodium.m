@@ -873,8 +873,12 @@ RCT_EXPORT_METHOD(decryptFile:(NSDictionary*)passwordOrKey cipher:(NSDictionary*
 {
     
     NAChlorideInit();
+    // Ciphers written before chunkSize was recorded always used STREAM_CHUNK_SIZE.
+    // A nil value used to give longValue 0, leaving chunk_size at just the tag
+    // length and turning the loop into millions of 17 byte reads.
     NSNumber *chunkSizeFromCipher = cipher[@"chunkSize"];
-    long chunk_size = chunkSizeFromCipher.longValue + crypto_secretstream_xchacha20poly1305_abytes();
+    long plain_chunk_size = chunkSizeFromCipher.longValue > 0 ? chunkSizeFromCipher.longValue : STREAM_CHUNK_SIZE;
+    long chunk_size = plain_chunk_size + crypto_secretstream_xchacha20poly1305_abytes();
     
     NSData* key;
     if ([passwordOrKey objectForKey:@"key"] && [passwordOrKey objectForKey:@"salt"]) {
