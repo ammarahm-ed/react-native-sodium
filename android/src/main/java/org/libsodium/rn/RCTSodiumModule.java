@@ -299,12 +299,8 @@ public class RCTSodiumModule extends ReactContextBaseJavaModule {
 
                 FileOutputStream outputStream = new FileOutputStream(getFilesFromFilesDirCache(hash, true));
 
-                int result = Transform(state, inputStream, outputStream, CHUNK_SIZE, false);
+                Transform(state, inputStream, outputStream, CHUNK_SIZE, false);
 
-                if (result != 0) {
-                    p.reject(ESODIUM, ERR_FAILURE);
-                    return;
-                }
                 WritableMap map = getCipherData(header, salt, length, hash, null);
                 map.putInt("chunkSize", 512 * 1024);
                 map.putInt("size", length);
@@ -356,15 +352,12 @@ public class RCTSodiumModule extends ReactContextBaseJavaModule {
                 InputStream inputStream =
                         reactContext.getContentResolver().openInputStream(Uri.fromFile(file));
 
-                int result = Transform(state, inputStream, outputStream, CHUNK_SIZE, true);
-
-                if (descriptor != null) {
-                    descriptor.close();
-                }
-
-                if (result != 0) {
-                    p.reject(ESODIUM, ERR_FAILURE);
-                    return;
+                try {
+                    Transform(state, inputStream, outputStream, CHUNK_SIZE, true);
+                } finally {
+                    if (descriptor != null) {
+                        descriptor.close();
+                    }
                 }
 
                 if (type.equals("base64") || type.equals("text")) {
@@ -381,7 +374,7 @@ public class RCTSodiumModule extends ReactContextBaseJavaModule {
         });
     }
 
-    public int Transform(SecretStream.State state, InputStream inputStream, OutputStream outputStream, int chunkSize, boolean decrypt) {
+    public void Transform(SecretStream.State state, InputStream inputStream, OutputStream outputStream, int chunkSize, boolean decrypt) throws Exception {
 
         try {
             int length = inputStream.available();
@@ -393,21 +386,24 @@ public class RCTSodiumModule extends ReactContextBaseJavaModule {
                 byte[] input_chunk = new byte[end - start];
                 inputStream.read(input_chunk);
                 byte[] output_chunk = decrypt ? decryptChunk(state, input_chunk) : encryptChunk(state, input_chunk, i == totalChunks - 1);
-                if (output_chunk != null) {
-                    outputStream.write(output_chunk);
-                } else {
-                    inputStream.close();
-                    outputStream.close();
-                    return -1;
-                }
+                if (output_chunk == null)
+                    throw new Exception((decrypt ? "crypto_secretstream_xchacha20poly1305_pull"
+                            : "crypto_secretstream_xchacha20poly1305_push")
+                            + " failed on chunk " + (i + 1) + " of " + (int) totalChunks
+                            + " (chunk " + input_chunk.length + " bytes, stream " + length + " bytes)");
+                outputStream.write(output_chunk);
                 onSodiumProgress(totalChunks, i);
                 outputStream.flush();
             }
-            inputStream.close();
-            outputStream.close();
-            return 0;
-        } catch (Exception e) {
-            return -1;
+        } finally {
+            try {
+                inputStream.close();
+            } catch (Exception ignored) {
+            }
+            try {
+                outputStream.close();
+            } catch (Exception ignored) {
+            }
         }
 
     }
