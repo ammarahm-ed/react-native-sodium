@@ -734,16 +734,26 @@ RCT_EXPORT_METHOD(decryptMulti:(NSDictionary*)passwordOrKey data:(NSArray *)data
     int size = (int) data.count;
     
     NSMutableArray * results = [NSMutableArray arrayWithCapacity:size];
+    NSString* cachedSalt = nil;
+    NSData* cachedKey = nil;
+
     for (int i=0;i < size; i++) {
         
         NSDictionary *cipher = data[i];
         
-        NSError* keyError = nil;
-        NSData* key = [self keyFor:passwordOrKey cipherSalt:cipher[@"salt"] allowNewSalt:NO salt:nil error:&keyError];
-        if (key == nil) {
-            reject(ESODIUM, keyError.localizedDescription, keyError);
-            return;
+        // Cached across items: a batch sharing one salt used to run argon2i
+        // (8 MiB, 3 passes) once per element.
+        NSString* cipherSalt = cipher[@"salt"];
+        if (cachedKey == nil || !(cachedSalt == cipherSalt || [cachedSalt isEqualToString:cipherSalt])) {
+            NSError* keyError = nil;
+            cachedKey = [self keyFor:passwordOrKey cipherSalt:cipherSalt allowNewSalt:NO salt:nil error:&keyError];
+            if (cachedKey == nil) {
+                reject(ESODIUM, keyError.localizedDescription, keyError);
+                return;
+            }
+            cachedSalt = cipherSalt;
         }
+        NSData* key = cachedKey;
         NSString* data = [cipher objectForKey:@"cipher"];
         NSData* cipherb = [self b642bin:data];
         
