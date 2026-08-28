@@ -249,11 +249,17 @@ RCT_EXPORT_METHOD(hashPassword:(NSString*)password email:(NSString *)email resol
 
 RCT_EXPORT_METHOD(hashFile:(NSDictionary *)data resolve: (RCTPromiseResolveBlock)resolve reject:(RCTPromiseRejectBlock)reject)
 {
-    resolve([self xxh64:data]);
+    NSError *error = nil;
+    NSString *hash = [self xxh64:data error:&error];
+    if (hash == nil) {
+        reject(ESODIUM, error.localizedDescription ?: @"hashFile failed", error);
+        return;
+    }
+    resolve(hash);
 }
 
 
-- (NSString *) xxh64:(NSDictionary *)data {
+- (NSString *) xxh64:(NSDictionary *)data error:(NSError **)error {
     
     NSInputStream *inputStream;
     NSNumber *length;
@@ -277,7 +283,9 @@ RCT_EXPORT_METHOD(hashFile:(NSDictionary *)data resolve: (RCTPromiseResolveBlock
     
     XXH_errorcode ec = XXH64_reset(state, 0);
     if (ec != XXH_OK) {
-        @throw NSGenericException;
+        [inputStream close];
+        if (error) *error = NAError(NAErrorCodeFailure, @"XXH64_reset failed");
+        return nil;
     }
     
     long chunk_size = 512 * 1024;
@@ -295,7 +303,10 @@ RCT_EXPORT_METHOD(hashFile:(NSDictionary *)data resolve: (RCTPromiseResolveBlock
         
         ec = XXH64_update (state, buffer, chunk_length);
         if (ec != XXH_OK) {
-            @throw NSGenericException;
+            free(buffer);
+            [inputStream close];
+            if (error) *error = NAError(NAErrorCodeFailure, @"XXH64_update failed");
+            return nil;
         }
     }
     
@@ -673,7 +684,12 @@ RCT_EXPORT_METHOD(encryptFile:(NSDictionary*)passwordOrKey data:(NSDictionary *)
     NSString *hash = data[@"hash"];
     
     if (hash == nil) {
-        hash = [self xxh64:data];
+        NSError *hashError = nil;
+        hash = [self xxh64:data error:&hashError];
+        if (hash == nil) {
+            reject(ESODIUM, hashError.localizedDescription ?: @"encryptFile: could not hash the input", hashError);
+            return;
+        }
     }
     
     if ([data[@"type"]  isEqual: @"base64"]) {

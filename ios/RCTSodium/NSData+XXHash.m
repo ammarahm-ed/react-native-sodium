@@ -21,11 +21,11 @@
     });
     XXH_errorcode ec = XXH3_64bits_reset(state);
     if (ec != XXH_OK) {
-        @throw NSGenericException;
+        return nil;
     }
     ec = XXH3_64bits_update(state, [self bytes], [self length]);
     if (ec != XXH_OK) {
-        @throw NSGenericException;
+        return nil;
     }
     unsigned long long val = XXH3_64bits_digest(state);
     return [NSString stringWithFormat:@"%llx", val];
@@ -42,11 +42,11 @@
     XXH_errorcode ec = XXH64_reset(state, 0x5bd1e995);
     
     if (ec != XXH_OK) {
-        @throw NSGenericException;
+        return nil;
     }
     ec = XXH64_update (state, [self bytes], [self length]);
     if (ec != XXH_OK) {
-        @throw NSGenericException;
+        return nil;
     }
     unsigned long long val = XXH64_digest(state);
     return [NSString stringWithFormat:@"%llx", val];
