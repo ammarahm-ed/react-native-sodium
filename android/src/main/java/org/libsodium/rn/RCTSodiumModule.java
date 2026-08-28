@@ -582,7 +582,13 @@ public class RCTSodiumModule extends ReactContextBaseJavaModule {
 
                 byte[] cipherb = Base64.decode(cipher.getString("cipher"), variant);
                 byte[] iv = Base64.decode(cipher.getString("iv"), variant);
-                byte[] plainText = new byte[cipher.getInt("length")];
+                if (cipherb.length < a_bytes_length)
+                    throw new Exception("ciphertext is only " + cipherb.length
+                            + " bytes, need at least " + a_bytes_length);
+                // Derived from the ciphertext rather than the caller's "length"
+                // field: too small overflows the buffer libsodium writes into,
+                // too large leaves trailing NUL bytes in the plaintext.
+                byte[] plainText = new byte[cipherb.length - a_bytes_length];
                 long[] plaintext_length = new long[1];
 
                 int result = Sodium.crypto_aead_xchacha20poly1305_ietf_decrypt(plainText, plaintext_length, null, cipherb, cipherb.length, null, 0, iv, key);
@@ -619,7 +625,10 @@ public class RCTSodiumModule extends ReactContextBaseJavaModule {
 
                     byte[] cipherb = Base64.decode(cipher.getString("cipher"), variant);
                     byte[] iv = Base64.decode(cipher.getString("iv"), variant);
-                    byte[] plainText = new byte[cipher.getInt("length")];
+                    if (cipherb.length < a_bytes_length)
+                        throw new Exception("ciphertext is only " + cipherb.length
+                                + " bytes, need at least " + a_bytes_length);
+                    byte[] plainText = new byte[cipherb.length - a_bytes_length];
                     long[] plaintext_length = new long[1];
 
                     int result = Sodium.crypto_aead_xchacha20poly1305_ietf_decrypt(plainText, plaintext_length, null, cipherb, cipherb.length, null, 0, iv, key);
