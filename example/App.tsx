@@ -10,11 +10,14 @@ import {
   View,
 } from 'react-native';
 import {SafeAreaProvider, SafeAreaView} from 'react-native-safe-area-context';
+import ReactNativeBlobUtil from 'react-native-blob-util';
 
 import {registeredGroups, run, TestResult, totalTests} from './src/harness';
 import './src/tests';
 
 type Filter = 'all' | 'failed';
+
+export const RESULTS_FILE = 'sodium-test-results.json';
 
 export default function App() {
   const isDark = useColorScheme() === 'dark';
@@ -67,6 +70,28 @@ export default function App() {
           })}`,
         );
         console.log('SODIUM_TEST_DONE');
+
+        // Also written to disk: console output is not reliably reachable from
+        // the host on iOS, and this gives both platforms one machine readable
+        // artifact to collect.
+        ReactNativeBlobUtil.fs
+          .writeFile(
+            `${ReactNativeBlobUtil.fs.dirs.DocumentDir}/${RESULTS_FILE}`,
+            JSON.stringify(
+              {
+                platform: Platform.OS,
+                version: Platform.Version,
+                ms: Date.now() - began,
+                results: all,
+              },
+              null,
+              2,
+            ),
+            'utf8',
+          )
+          .catch(() => {
+            /* best effort */
+          });
       }
     },
     [running],

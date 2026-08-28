@@ -1,3 +1,5 @@
+require_relative './scripts/patch_fmt_consteval.rb'
+
 # Resolve react_native_pods.rb with node to allow for hoisting
 require Pod::Executable.execute_command('node', ['-p',
   'require.resolve(
@@ -24,6 +26,31 @@ target 'SodiumExample' do
   )
 
   post_install do |installer|
+    # RN 0.82 vendors fmt 11.0.2, which Xcode >= 26.2 rejects. Same patch the
+    # Notesnook app uses; without it the project cannot be built at all on a
+    # current Xcode, for reasons unrelated to this library.
+    PatchFmtConsteval.apply!(installer.sandbox.root)
+
+    # react-native-sodium vendors an old-style fat libsodium.a whose arm64 slice
+    # is device-only: there is no arm64-simulator slice, so an Apple Silicon
+    # simulator build cannot link it. x86_64 is the slice that does exist, so
+    # exclude arm64 for the simulator (the Notesnook app carries the same line).
+    installer.pods_project.targets.each do |target|
+      target.build_configurations.each do |config|
+        config.build_settings['EXCLUDED_ARCHS[sdk=iphonesimulator*]'] = 'arm64'
+      end
+    end
+    installer.aggregate_targets.each do |aggregate_target|
+      user_project = aggregate_target.user_project
+      next if user_project.nil?
+      user_project.native_targets.each do |target|
+        target.build_configurations.each do |config|
+          config.build_settings['EXCLUDED_ARCHS[sdk=iphonesimulator*]'] = 'arm64'
+        end
+      end
+      user_project.save
+    end
+
     react_native_post_install(
       installer,
       config[:reactNativePath],

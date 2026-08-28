@@ -16,8 +16,11 @@ export type SerializedKey = {
   password?: string;
 };
 
-export const NOTESNOOK_DB_KEY_SALT = 'notesnookDbKeySalt';
-export const NOTESNOOK_APPLOCK_KEY_SALT = 'notesnookAppLockKeySalt';
+// The real constants from the app. Both decode to exactly 16 bytes, which is
+// what crypto_pwhash expects; a shorter salt would make libsodium read past the
+// end of the buffer.
+export const NOTESNOOK_APPLOCK_KEY_SALT = 'kBwr1Kre86ebOZ8ThLu2OA';
+export const NOTESNOOK_DB_KEY_SALT = 'SNuzOcEK3amoqL0WvPeKqw';
 
 export function getAlgorithm(base64Variant: number) {
   return `xcha-argon2i13-${base64Variant}`;
