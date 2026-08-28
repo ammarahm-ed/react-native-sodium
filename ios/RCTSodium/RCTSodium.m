@@ -647,7 +647,10 @@ RCT_EXPORT_METHOD(encryptFile:(NSDictionary*)passwordOrKey data:(NSDictionary *)
         key = [self b642bin:[passwordOrKey objectForKey:@"key"]];
     } else if ([passwordOrKey objectForKey:@"password"]) {
         NSMutableDictionary* keySalt = [self crypto_pwhash:[passwordOrKey valueForKey:@"password"] salt:NULL fallbackKey:false];
-        if (keySalt == NULL) return;
+        if (keySalt == NULL) {
+            reject(ESODIUM, @"encryptFile: crypto_pwhash failed while deriving the key from the password", nil);
+            return;
+        }
         key = (NSData*)[keySalt objectForKey:@"key"];
         salt = (NSData*)[keySalt objectForKey:@"salt"];
         
