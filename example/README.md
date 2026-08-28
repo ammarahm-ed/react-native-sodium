@@ -65,9 +65,32 @@ pins down deliberately:
 - `decryptMulti` must survive a key whose `salt` is explicitly `null`, which is
   the shape that produced the `Pair.first` null dereference in the field.
 
+### Collecting results from the host
+
+The run also writes `sodium-test-results.json` into the app's Documents
+directory, which is the reliable way to collect results on iOS:
+
+```sh
+CONTAINER=$(xcrun simctl get_app_container booted org.reactjs.native.example.SodiumExample data)
+cat "$CONTAINER/Documents/sodium-test-results.json"
+```
+
 ## Notes
 
-- `android/settings.gradle` includes `:lazysodium-android` by hand. Autolinking
-  cannot discover it, so every consuming app needs the same three lines.
-- The suite writes scratch files under the app cache directory and cleans up
-  after itself.
+Three things a consuming app has to do, all of which this example demonstrates:
+
+- **`android/settings.gradle` includes `:lazysodium-android` by hand.**
+  Autolinking cannot discover it, so every consuming app needs the same three
+  lines.
+- **The simulator has to be built for x86_64.** The vendored `libsodium.a` is an
+  old-style fat binary whose `arm64` slice is device-only; there is no
+  arm64-simulator slice, so an Apple Silicon simulator build cannot link it.
+  `ios/Podfile` sets `EXCLUDED_ARCHS[sdk=iphonesimulator*] = arm64` for both the
+  pods and the app target. Device builds are unaffected.
+- **fmt needs patching on Xcode >= 26.2.** React Native 0.82 vendors fmt 11.0.2,
+  which a current Xcode rejects. `ios/scripts/patch_fmt_consteval.rb` runs from
+  `post_install`. This is unrelated to this library; the Notesnook app carries
+  the same patch.
+
+The suite writes scratch files under the app cache directory and cleans up after
+itself.
