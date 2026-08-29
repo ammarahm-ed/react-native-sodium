@@ -27,14 +27,14 @@ function requireNative() {
  */
 const Sodium: {
   sodium_version_string(): Promise<string>;
-  encrypt<OutputType>(password: Password, data: {
+  encrypt<OutputType = "base64">(password: Password, data: {
     type: 'b64' | "plain",
     data: string
   }): Promise<Cipher<OutputType>>;
   decrypt(password: Password, Cipher: Cipher): Promise<string>;
 
   decryptMulti(password: Password, data: Cipher[]): Promise<string[]>;
-  encryptMulti<OutputType>(password: Password, data: {
+  encryptMulti<OutputType = "base64">(password: Password, data: {
     type: 'b64' | "plain",
     data: string
   }[]): Promise<Cipher<OutputType>[]>;
