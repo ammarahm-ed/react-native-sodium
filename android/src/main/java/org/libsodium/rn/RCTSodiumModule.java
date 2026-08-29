@@ -486,45 +486,66 @@ public class RCTSodiumModule extends ReactContextBaseJavaModule {
      * good enough to drive the progress denominator.
      */
     public long Transform(SecretStream.State state, InputStream inputStream, OutputStream outputStream, int chunkSize, boolean decrypt) throws Exception {
+        final int aBytes = Sodium.crypto_secretstream_xchacha20poly1305_abytes();
 
         try {
             double totalChunks = Math.max(Math.ceil((double) inputStream.available() / (double) chunkSize), 1);
             long processed = 0;
             int index = 0;
 
+            // Allocated once and reused for the whole stream. Allocating a chunk
+            // buffer per iteration turned a 100 MiB file into roughly 200 MiB of
+            // garbage, which is pure GC pressure on the encryption path.
             byte[] current = new byte[chunkSize];
+            byte[] next = new byte[chunkSize];
+            byte[] output = new byte[decrypt ? chunkSize : chunkSize + aBytes];
+            byte[] tag = new byte[1];
+
             int currentLength = readFully(inputStream, current);
 
             do {
-                byte[] next = new byte[chunkSize];
                 int nextLength = readFully(inputStream, next);
                 boolean isFinal = nextLength == 0;
 
-                byte[] input_chunk = currentLength == chunkSize ? current : Arrays.copyOf(current, currentLength);
-
-                if (decrypt && input_chunk.length < Sodium.crypto_secretstream_xchacha20poly1305_abytes())
+                if (decrypt && currentLength < aBytes)
                     throw new Exception("truncated ciphertext: chunk " + (index + 1) + " is only "
-                            + input_chunk.length + " bytes, need at least "
-                            + Sodium.crypto_secretstream_xchacha20poly1305_abytes());
+                            + currentLength + " bytes, need at least " + aBytes);
 
-                byte[] output_chunk = decrypt ? decryptChunk(state, input_chunk) : encryptChunk(state, input_chunk, isFinal);
-                if (output_chunk == null)
+                // The output length is fixed by the construction, so it does not
+                // need to be read back out of libsodium.
+                int outputLength = decrypt ? currentLength - aBytes : currentLength + aBytes;
+
+                int result;
+                if (decrypt) {
+                    result = Sodium.crypto_secretstream_xchacha20poly1305_pull(
+                            state, output, null, tag, current, currentLength, null, 0);
+                } else {
+                    byte chunkTag = isFinal
+                            ? Sodium.crypto_secretstream_xchacha20poly1305_tag_final()
+                            : Sodium.crypto_secretstream_xchacha20poly1305_tag_message();
+                    result = Sodium.crypto_secretstream_xchacha20poly1305_push(
+                            state, output, null, current, currentLength, null, 0, chunkTag);
+                }
+
+                if (result != 0)
                     throw new Exception((decrypt ? "crypto_secretstream_xchacha20poly1305_pull"
                             : "crypto_secretstream_xchacha20poly1305_push")
                             + " failed on chunk " + (index + 1)
-                            + " (chunk " + input_chunk.length + " bytes)");
+                            + " (chunk " + currentLength + " bytes)");
 
-                outputStream.write(output_chunk);
-                outputStream.flush();
-                processed += decrypt ? output_chunk.length : input_chunk.length;
+                outputStream.write(output, 0, outputLength);
+                processed += decrypt ? outputLength : currentLength;
 
                 onSodiumProgress(Math.max(totalChunks, index + 1), index);
                 index++;
 
+                byte[] swap = current;
                 current = next;
+                next = swap;
                 currentLength = nextLength;
             } while (currentLength > 0);
 
+            outputStream.flush();
             return processed;
         } finally {
             try {
@@ -538,27 +559,6 @@ public class RCTSodiumModule extends ReactContextBaseJavaModule {
         }
 
     }
-
-    public byte[] encryptChunk(SecretStream.State state, byte[] input, boolean final_chunk) {
-        byte[] output_chunk = new byte[input.length + Sodium.crypto_secretstream_xchacha20poly1305_abytes()];
-        byte tag = final_chunk ? Sodium.crypto_secretstream_xchacha20poly1305_tag_final() : Sodium.crypto_secretstream_xchacha20poly1305_tag_message();
-        int result = Sodium.crypto_secretstream_xchacha20poly1305_push(state, output_chunk, null, input, input.length, null, 0, tag);
-        if (result != 0) {
-            return null;
-        }
-        return output_chunk;
-    }
-
-    public byte[] decryptChunk(SecretStream.State state, byte[] input) {
-        byte[] output_chunk = new byte[input.length - Sodium.crypto_secretstream_xchacha20poly1305_abytes()];
-        byte[] tag = new byte[1];
-        int result = Sodium.crypto_secretstream_xchacha20poly1305_pull(state, output_chunk, null, tag, input, input.length, null, 0);
-        if (result != 0) {
-            return null;
-        }
-        return output_chunk;
-    }
-
 
     @ReactMethod
     public void encryptMulti(final ReadableMap passwordOrKey, final ReadableArray array, final Promise p) {
