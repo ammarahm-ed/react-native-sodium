@@ -19,6 +19,13 @@ type Filter = 'all' | 'failed';
 
 export const RESULTS_FILE = 'sodium-test-results.json';
 
+/**
+ * Which group to run automatically on launch. undefined runs everything except
+ * the manual groups (benchmarks). Set to a group name to drive that group from
+ * a terminal without tapping its chip.
+ */
+const RUN_ON_LAUNCH: string | undefined = undefined;
+
 export default function App() {
   const isDark = useColorScheme() === 'dark';
   const theme = isDark ? dark : light;
@@ -101,7 +108,7 @@ export default function App() {
   useEffect(() => {
     if (autoStarted.current) return;
     autoStarted.current = true;
-    start(undefined);
+    start(RUN_ON_LAUNCH);
   }, [start]);
 
   const summary = useMemo(

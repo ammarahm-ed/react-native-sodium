@@ -19,6 +19,7 @@ type Test = {name: string; fn: TestFn; skip: boolean};
 type Group = {name: string; tests: Test[]};
 
 const groups: Group[] = [];
+const manualGroups = new Set<string>();
 let current: Group | null = null;
 
 export function describe(name: string, body: () => void) {
@@ -46,6 +47,19 @@ it.skip = (name: string, fn: TestFn) => {
 };
 
 it.if = (condition: boolean) => (condition ? it : it.skip);
+
+/**
+ * A group that "run all" skips. Used for benchmarks, which are slow and are
+ * meant to be run deliberately from their own chip.
+ */
+describe.manual = (name: string, body: () => void) => {
+  describe(name, body);
+  manualGroups.add(name);
+};
+
+export function isManual(name: string): boolean {
+  return manualGroups.has(name);
+}
 
 function stringify(value: unknown): string {
   if (typeof value === 'string') return JSON.stringify(value);
@@ -183,6 +197,7 @@ export async function run(
   const results: TestResult[] = [];
   for (const group of groups) {
     if (only && group.name !== only) continue;
+    if (!only && manualGroups.has(group.name)) continue;
     for (const test of group.tests) {
       const started = Date.now();
       let result: TestResult;

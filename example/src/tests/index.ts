@@ -5,3 +5,4 @@ import './aead';
 import './files';
 import './errors';
 import './notesnook';
+import './benchmark';
