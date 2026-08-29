@@ -1,0 +1,61 @@
+# What NOT to publish to npm.
+#
+# IMPORTANT: the moment this file exists, npm stops honouring .gitignore
+# entirely -- including the nested ones, such as example/.gitignore. Anything
+# that was only kept out of the tarball by a .gitignore has to be listed here
+# explicitly, or it will start shipping.
+
+# ---------------------------------------------------------------------------
+# The example app
+# ---------------------------------------------------------------------------
+# It carries its own node_modules, ios/Pods, Xcode DerivedData and Gradle build
+# output: several gigabytes. Without this entry, publishing this package would
+# try to pack all of it.
+example/
+
+# ---------------------------------------------------------------------------
+# Build output
+# ---------------------------------------------------------------------------
+android/build/
+android/lib/
+android/.externalNativeBuild/
+android/lazysodium-android/app/build/
+ios/build/
+.cxx/
+.gradle/
+build/
+
+# ---------------------------------------------------------------------------
+# Vendored lazysodium-android
+# ---------------------------------------------------------------------------
+# Consumers include only :lazysodium-android -> lazysodium-android/app, which
+# source-includes ../lazysodium-java/src/main/java (app/build.gradle). Both of
+# those ship, along with the jniLibs and the MPL licence texts. The bundled
+# demo app is referenced by nothing and is the largest thing left in the tree.
+android/lazysodium-android/sample-app/
+
+# ---------------------------------------------------------------------------
+# Xcode local state
+# ---------------------------------------------------------------------------
+project.xcworkspace/
+xcuserdata/
+*.xcuserstate
+*.xcscmblueprint
+
+# ---------------------------------------------------------------------------
+# Editor, OS and local machine files
+# ---------------------------------------------------------------------------
+*.iml
+.idea/
+.vscode/
+*.code-workspace
+.DS_Store
+local.properties
+*.log
+
+# ---------------------------------------------------------------------------
+# Repository tooling: useful in the repo, dead weight in node_modules
+# ---------------------------------------------------------------------------
+.github/
+.editorconfig
+.watchmanconfig
