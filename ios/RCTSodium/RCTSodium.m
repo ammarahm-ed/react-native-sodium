@@ -9,7 +9,11 @@
 #import "RCTBridgeModule.h"
 #import "RCTUtils.h"
 #import "sodium.h"
+#if __has_include(<Base64/MF_Base64Additions.h>)
+#import <Base64/MF_Base64Additions.h>
+#else
 #import "MF_Base64Additions.h"
+#endif
 #import "RCTSodium.h"
 #import "NAInterface.h"
 #import "NAAEAD.h"

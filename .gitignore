@@ -10,6 +10,7 @@ android/lib
 .idea
 .gradle
 local.properties
+.npmrc
 
 # Xcode
 ios/build

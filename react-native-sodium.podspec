@@ -16,7 +16,12 @@ Pod::Spec.new do |s|
   s.source_files  = ["ios/**/*.{h,m}","libsodium/libsodium-ios/**/*.{h,m}"]
 
   s.vendored_libraries = 'libsodium/libsodium-ios/lib/libsodium.a'
-  s.xcconfig = { 'HEADER_SEARCH_PATHS' => "${PODS_ROOT}/Headers/Public/#{s.name}/**" }
+    # sodium.h does #include "sodium/version.h", so the vendored include dir has
+  # to be on the search path. (The previous value interpolated '#{s.name}'
+  # inside single quotes, so it was a literal, non-existent path.)
+  s.xcconfig = {
+    'HEADER_SEARCH_PATHS' => '"$(PODS_TARGET_SRCROOT)/libsodium/libsodium-ios/include"'
+  }
 
   s.dependency 'React-Core'
   # RCTSodium.m imports MF_Base64Additions.h. This was never declared, so the
