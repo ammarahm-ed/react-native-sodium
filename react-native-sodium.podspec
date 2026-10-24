@@ -13,14 +13,15 @@ Pod::Spec.new do |s|
   s.platform     = :ios, "15.1"
 
   s.source       = { :git => "https://github.com/lyubo/react-native-sodium.git", :tag => "v#{s.version}" }
-  s.source_files  = ["ios/**/*.{h,m}","libsodium/libsodium-ios/**/*.{h,m}"]
+  s.source_files  = ["ios/**/*.{h,m}"]
 
-  s.vendored_libraries = 'libsodium/libsodium-ios/lib/libsodium.a'
-    # sodium.h does #include "sodium/version.h", so the vendored include dir has
-  # to be on the search path. (The previous value interpolated '#{s.name}'
-  # inside single quotes, so it was a literal, non-existent path.)
+  # libsodium 1.0.20 static xcframework: ios-arm64 (device) and
+  # ios-arm64_x86_64-simulator slices.
+  s.vendored_frameworks = 'libsodium/libsodium.xcframework'
+  # sodium.h does #include "sodium/version.h", so the xcframework headers have
+  # to be on the search path.
   s.xcconfig = {
-    'HEADER_SEARCH_PATHS' => '"$(PODS_TARGET_SRCROOT)/libsodium/libsodium-ios/include"'
+    'HEADER_SEARCH_PATHS' => '"$(PODS_TARGET_SRCROOT)/libsodium/libsodium.xcframework/ios-arm64/Headers"'
   }
 
   s.dependency 'React-Core'
