@@ -1,0 +1,14 @@
+[package]
+name = "rn-gpui-sodium"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+rn-gpui-module = { version = "0.1" }
+libsodium-sys-stable = "1"
+base64 = "0.22"
+xxhash-rust = { version = "0.8", features = ["xxh64"] }
+dirs = "5"
+
+[build-dependencies]
+rn-gpui-module-build = { version = "0.1" }
