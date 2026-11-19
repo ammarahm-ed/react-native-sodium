@@ -21,6 +21,14 @@
   "codegenConfig": {
     "name": "RNSodiumSpec",
     "type": "modules",
-    "jsSrcsDir": "desktop/spec"
+    "jsSrcsDir": "spec",
+    "android": {
+      "javaPackageName": "org.libsodium.rn"
+    },
+    "ios": {
+      "modulesProvider": {
+        "Sodium": "RCTSodium"
+      }
+    }
   }
 }

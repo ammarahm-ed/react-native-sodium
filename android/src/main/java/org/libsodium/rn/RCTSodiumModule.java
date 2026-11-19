@@ -13,7 +13,6 @@ import com.facebook.react.bridge.Arguments;
 import com.facebook.react.bridge.Promise;
 import com.facebook.react.bridge.ReactApplicationContext;
 import com.facebook.react.bridge.ReactContext;
-import com.facebook.react.bridge.ReactContextBaseJavaModule;
 import com.facebook.react.bridge.ReactMethod;
 import com.facebook.react.bridge.ReadableArray;
 import com.facebook.react.bridge.ReadableMap;
@@ -46,7 +45,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 @ReactModule(name = "Sodium")
-public class RCTSodiumModule extends ReactContextBaseJavaModule {
+public class RCTSodiumModule extends NativeSodiumSpec {
 
     static final String ESODIUM = "ESODIUM";
     static final String ERR_FAILURE = "FAILURE";
@@ -234,7 +233,7 @@ public class RCTSodiumModule extends ReactContextBaseJavaModule {
     }
 
     @ReactMethod
-    public void removeListeners(Integer count) {
+    public void removeListeners(double count) {
         // Keep: Required for RN built in Event Emitter Calls.
     }
 
@@ -754,7 +753,7 @@ public class RCTSodiumModule extends ReactContextBaseJavaModule {
     }
 
     @ReactMethod
-    public void deriveKey(final String password, final String salt, final Promise p) {
+    public void deriveKey(final String password, @Nullable final String salt, final Promise p) {
         executor.execute(() -> {
             try {
                 Pair<byte[], byte[]> pair = crypto_pwhash(password, salt);

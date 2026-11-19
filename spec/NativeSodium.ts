@@ -9,6 +9,9 @@ export interface Spec extends TurboModule {
   decryptMulti(password: Object, data: Array<Object>): Promise<Array<string>>;
   hashPassword(password: string, email: string): Promise<string>;
   deriveKey(password: string, salt: string | null): Promise<Object>;
+  // iOS only; index.ts checks for their presence before exposing them.
+  hashPasswordFallback?: (password: string, email: string) => Promise<string>;
+  deriveKeyFallback?: (password: string, salt: string | null) => Promise<Object>;
   encryptFile(password: Object, data: Object): Promise<Object>;
   decryptFile(
     password: Object,

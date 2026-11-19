@@ -158,7 +158,7 @@ RCT_EXPORT_MODULE();
     if (crypto_pwhash(key, key_len,
                       dpassword,
                       fallbackKey ? [password length] : strlen(dpassword),
-                      [dsalt bytes],
+                      (const unsigned char *) [dsalt bytes],
                       ops,
                       memlimit, crypto_pwhash_alg_argon2i13()) != 0) {
         
@@ -239,7 +239,7 @@ RCT_EXPORT_METHOD(sodium_version_string:(RCTPromiseResolveBlock)resolve reject:(
 // startObserving never ran, so hasListeners stayed NO and onSodiumProgress was
 // never delivered on iOS.
 
-RCT_EXPORT_METHOD(deriveKeyFallback:(NSString*)password salty:(NSString *)salty resolve: (RCTPromiseResolveBlock)resolve reject:(RCTPromiseRejectBlock)reject) {
+RCT_EXPORT_METHOD(deriveKeyFallback:(NSString*)password salt:(NSString *)salty resolve: (RCTPromiseResolveBlock)resolve reject:(RCTPromiseRejectBlock)reject) {
     NAChlorideInit();
     
     size_t bytes_len = strlen([password cStringUsingEncoding:NSUTF8StringEncoding]);
@@ -261,7 +261,7 @@ RCT_EXPORT_METHOD(deriveKeyFallback:(NSString*)password salty:(NSString *)salty 
     
 }
 
-RCT_EXPORT_METHOD(deriveKey:(NSString*)password salty:(NSString *)salty resolve: (RCTPromiseResolveBlock)resolve reject:(RCTPromiseRejectBlock)reject) {
+RCT_EXPORT_METHOD(deriveKey:(NSString*)password salt:(NSString *)salty resolve: (RCTPromiseResolveBlock)resolve reject:(RCTPromiseRejectBlock)reject) {
     NAChlorideInit();
     
     NSMutableDictionary* keySalt = [self crypto_pwhash:password salt:salty fallbackKey:false];
@@ -447,7 +447,7 @@ RCT_EXPORT_METHOD(hashFile:(NSDictionary *)data resolve: (RCTPromiseResolveBlock
     
     double totalChunks = fmax(ceilf((float)length.longLongValue/(float)chunk_size), 1);
     
-    uint8_t * buffer = malloc(chunk_size);
+    uint8_t * buffer = (uint8_t *) malloc(chunk_size);
     
     for (int i=0;i < totalChunks;i++) {
         long start = i * chunk_size;
@@ -567,9 +567,9 @@ RCT_EXPORT_METHOD(hashFile:(NSDictionary *)data resolve: (RCTPromiseResolveBlock
     
     double totalChunks = fmax(ceilf((float)length/(float)chunkSize), 1);
     
-    uint8_t * buffer = malloc(chunkSize);
+    uint8_t * buffer = (uint8_t *) malloc(chunkSize);
     unsigned long max_output_chunk_length =  decrypt ? chunkSize - crypto_secretstream_xchacha20poly1305_abytes() :  chunkSize + crypto_secretstream_xchacha20poly1305_abytes();
-    uint8_t * output_buffer = malloc(max_output_chunk_length);
+    uint8_t * output_buffer = (uint8_t *) malloc(max_output_chunk_length);
     
     for (int i=0;i < totalChunks;i++) {
         long start = i * chunkSize;
@@ -652,7 +652,7 @@ RCT_EXPORT_METHOD(hashFile:(NSDictionary *)data resolve: (RCTPromiseResolveBlock
 }
 
 
-RCT_EXPORT_METHOD(encryptMulti:(NSDictionary*)passwordOrKey array:(NSArray *)array resolve: (RCTPromiseResolveBlock)resolve reject:(RCTPromiseRejectBlock)reject)
+RCT_EXPORT_METHOD(encryptMulti:(NSDictionary*)passwordOrKey data:(NSArray *)array resolve: (RCTPromiseResolveBlock)resolve reject:(RCTPromiseRejectBlock)reject)
 {
     
     int size = (int) array.count;
@@ -945,7 +945,7 @@ RCT_EXPORT_METHOD(encryptFile:(NSDictionary*)passwordOrKey data:(NSDictionary *)
     crypto_secretstream_xchacha20poly1305_state state;
     NSMutableData * header = [[NSMutableData alloc] initWithLength:crypto_secretstream_xchacha20poly1305_HEADERBYTES];
     
-    crypto_secretstream_xchacha20poly1305_init_push(&state,(unsigned char *) header.bytes, key.bytes);
+    crypto_secretstream_xchacha20poly1305_init_push(&state,(unsigned char *) header.bytes, (const unsigned char *) key.bytes);
     
     NSMutableDictionary *outputDic = [NSMutableDictionary dictionaryWithDictionary:data];
     [outputDic setValue:hash forKey:@"hash"];
@@ -1064,7 +1064,7 @@ RCT_EXPORT_METHOD(decryptFile:(NSDictionary*)passwordOrKey cipher:(NSDictionary*
         return;
     }
     crypto_secretstream_xchacha20poly1305_state state;
-    crypto_secretstream_xchacha20poly1305_init_pull(&state,[iv bytes], [key bytes]);
+    crypto_secretstream_xchacha20poly1305_init_pull(&state, (const unsigned char *) [iv bytes], (const unsigned char *) [key bytes]);
     NSString *writtenPath = nil;
     NSOutputStream *outputStream = [self getOutputStream:cipher type:type path:&writtenPath];
     if (outputStream == nil) {
@@ -1109,5 +1109,12 @@ RCT_EXPORT_METHOD(decryptFile:(NSDictionary*)passwordOrKey cipher:(NSDictionary*
     [inputStream close];
     [outputStream close];
 }
+
+#ifdef RCT_NEW_ARCH_ENABLED
+- (std::shared_ptr<facebook::react::TurboModule>)getTurboModule:(const facebook::react::ObjCTurboModule::InitParams &)params
+{
+    return std::make_shared<facebook::react::NativeSodiumSpecJSI>(params);
+}
+#endif
 
 @end

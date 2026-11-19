@@ -1,5 +1,13 @@
 apply plugin: 'com.android.library'
 
+def isNewArchitectureEnabled() {
+    return project.hasProperty("newArchEnabled") && project.newArchEnabled == "true"
+}
+
+if (isNewArchitectureEnabled()) {
+    apply plugin: 'com.facebook.react'
+}
+
 def safeExtGet(prop, fallback) {
     rootProject.ext.has(prop) ? rootProject.ext.get(prop) : fallback
 }
@@ -12,6 +20,19 @@ android {
         targetSdkVersion safeExtGet('targetSdkVersion', 29)
         versionCode 1
         versionName "0.1"
+        buildConfigField "boolean", "IS_NEW_ARCHITECTURE_ENABLED", isNewArchitectureEnabled().toString()
+    }
+    buildFeatures {
+        buildConfig true
+    }
+    sourceSets {
+        main {
+            // The codegen output provides NativeSodiumSpec under the New
+            // Architecture; otherwise compile the hand written equivalent.
+            if (!isNewArchitectureEnabled()) {
+                java.srcDirs += ["src/oldarch/java"]
+            }
+        }
     }
     buildTypes {
         release {

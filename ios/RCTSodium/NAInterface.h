@@ -51,7 +51,13 @@ extern const size_t NAAEADASize;
 
 
 // Thread safe libsodium init
+#ifdef __cplusplus
+extern "C" {
+#endif
 void NAChlorideInit(void);
+#ifdef __cplusplus
+}
+#endif
 
 // Don't call this directly (use NAChlorideInit). This is made accessible for testing.
 int NASodiumInit(void);
